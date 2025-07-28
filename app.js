@@ -4,7 +4,7 @@ const cors = require('cors');
 const app = express();
 const connectDB = require('./DataBase/db');
 const netflixRoutes = require('./routes/netflixGetAllData.js'); // adjust path as needed
-
+const authRoutes = require('./routes/authRoute.js')
 //const route = require('./routes/indexRoute');
 
 dotenv.config();
@@ -20,6 +20,14 @@ app.use(cors({
 app.use(express.json());
 // app.use('/api', route);
 app.use('/api', netflixRoutes); 
+
+app.use('/api/google', authRoutes); // ✅ Route middleware registered only once
+
+
+app.get('/', (req, res) => {
+  res.send("🎬 Netflix Ticketing Backend Running");
+});
+
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
