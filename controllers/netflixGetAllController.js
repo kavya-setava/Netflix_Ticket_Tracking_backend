@@ -1,8 +1,13 @@
-
 const NetflixTicket = require('../models/Netflixupdateschema');
 const { google } = require('googleapis');
 const path = require('path');
 require('dotenv').config();
+
+const auth = new google.auth.GoogleAuth({
+  keyFile: process.env.GOOGLE_CREDENTIALS_PATH,
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+});
+
 
 
 
@@ -218,13 +223,6 @@ exports.getNetflixTickets = async (req, res) => {
 };
 
 
-const auth = new google.auth.GoogleAuth({
-  keyFile: process.env.GOOGLE_CREDENTIALS_PATH,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
-
-
-
 
 exports.updateTicketByKey = async (req, res) => {
   try {
@@ -323,8 +321,7 @@ exports.updateTicketByKey = async (req, res) => {
 };
 
 
-
-exports.getFilterOptions = async (req, res) => {
+exports.CMTicketsFilterOptions = async (req, res) => {
   try {
     const ticketData = await NetflixTicket.find(
       {

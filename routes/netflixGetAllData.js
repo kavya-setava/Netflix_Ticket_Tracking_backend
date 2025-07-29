@@ -10,7 +10,7 @@ router.post("/qmdata", getNetflixTickets.qmdata);
 
 router.get("/getNetflixTickets", getNetflixTickets.getNetflixTickets);  
 router.put("/updateTicketByKey/:ticketKey", getNetflixTickets.updateTicketByKey);  
-router.get('/dropdown', getNetflixTickets.getFilterOptions);
+router.get('/dropdown', getNetflixTickets.CMTicketsFilterOptions);
 
 
 module.exports =  router
