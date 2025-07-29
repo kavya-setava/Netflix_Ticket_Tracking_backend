@@ -89,7 +89,7 @@ exports.getNetflixTickets = async (req, res) => {
       updatedTo,
       searchText,
       page = 1,
-      limit = 10,
+      limit = 25,
       ticketIDList,
       ticketKeyList,
       cmNameList,
@@ -182,8 +182,10 @@ exports.getNetflixTickets = async (req, res) => {
 
     const [total, assignedCount, closedCount] = await Promise.all([
       NetflixTicket.countDocuments(query),
-      NetflixTicket.countDocuments({ ...baseQuery, status: 'Assigned' }),
-      NetflixTicket.countDocuments({ ...baseQuery, status: 'Closed' })
+      NetflixTicket.countDocuments({ ...query, status: 'Assigned' }),
+      // NetflixTicket.countDocuments({ ...baseQuery, status: 'Assigned' }),
+      // NetflixTicket.countDocuments({ ...baseQuery, status: 'Closed' }),
+      NetflixTicket.countDocuments({ ...query, status: 'Closed' })
     ]);
 
     if (role === '0' && total === 0) {

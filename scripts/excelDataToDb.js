@@ -130,6 +130,8 @@
 const mongoose = require('mongoose');
 const { google } = require('googleapis');
 const NetflixTicket = require('../models/netflixUpdateSchema');
+const cron = require('node-cron');
+
 
 // Configuration
 const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
@@ -278,5 +280,13 @@ async function migrateData() {
   }
 }
 
-migrateData();
 
+// it will run when program runs
+// migrateData();
+
+
+// it will run for every hour like 7:00 , 8:00 .. 
+cron.schedule('0 * * * *', async () => {
+  console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
+  await migrateData();
+});
