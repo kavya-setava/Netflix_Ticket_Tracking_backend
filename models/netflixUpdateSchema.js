@@ -14,10 +14,22 @@ const NetflixTicketsSchema = new Schema({
     type: String,
     
   },
-  ticketKey: String,
-  created: Date,
-  updated: Date,
-  CM_name: String,
+  ticketKey: {
+    type: String,
+  },
+  // created: String,
+  // updated: String,
+  created: {
+  type: String,
+ 
+},
+updated: {
+  type: String,
+ 
+},
+  CM_name: {
+    type: String,
+  },
   CM_email: {
     type: String,
     match: [/.+\@.+\..+/, 'Please fill a valid email address']
@@ -35,10 +47,7 @@ const NetflixTicketsSchema = new Schema({
     type: String,  // Changed to String (default empty)
     default: "00:00:00"
   },
-  // lastBreachCheck: {
-  //   type: String,  // Changed to String (default empty)
-  //   default: ""
-  // },
+ 
   latest_created_date: {
     type: Date,
     default: Date.now
@@ -48,6 +57,10 @@ const NetflixTicketsSchema = new Schema({
     default: '00:00:00'
   },
   endTime: {
+    type: String,
+    default: '00:00:00'
+  },
+   pauseTime: {
     type: String,
     default: '00:00:00'
   },
@@ -78,11 +91,5 @@ NetflixTicketsSchema.pre('save', async function(next) {
   }
 });
 
-// Auto-update 'updated' timestamp (no SLA calculation)
-NetflixTicketsSchema.pre('save', function(next) {
-  this.updated = new Date();
-  if (this.isNew) this.created = this.updated;
-  next();
-});
 
 module.exports = mongoose.model('NetflixTicket', NetflixTicketsSchema);

@@ -373,18 +373,19 @@ async function migrateData() {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        const ticketData = {
-          ticketKey: row[columnMap.ticketKey],
-          created: parseExcelDate(row[columnMap.created]),
-          updated: parseExcelDate(row[columnMap.updated]),
-          AM_name: row[columnMap.AM_name],
-          CM_name: row[columnMap.CM_name],
-          CM_email: row[columnMap.CM_email],
-          cm_region: row[columnMap.cm_region],
-          status: row[columnMap.status],
-          // Remove updateddate or set it to the parsed updated date if you need it
-          updateddate: parseExcelDate(row[columnMap.updated]) || new Date()
-        };
+      const ticketData = {
+  ticketKey: row[columnMap.ticketKey],
+  created: row[columnMap.created],  // Store as string from sheet (with time zone)
+  updated: row[columnMap.updated],  // Store as string from sheet (with time zone)
+  AM_name: row[columnMap.AM_name],
+  CM_name: row[columnMap.CM_name],
+  CM_email: row[columnMap.CM_email],
+  cm_region: row[columnMap.cm_region],
+  status: row[columnMap.status],
+  // updateddate: parseExcelDate(row[columnMap.updated]) || new Date(),
+  // latest_created_date: parseExcelDate(row[columnMap.created]) || new Date()
+};
+
 
         await NetflixTicket.create(ticketData);
         successCount++;
