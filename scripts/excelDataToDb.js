@@ -245,13 +245,13 @@ async function migrateData() {
 };
 
 
-        await NetflixTicket.create(ticketData);
-        successCount++;
-        
-        // Show progress every 10 records or for the last record
-        if (successCount % 10 === 0 || i === rows.length - 1) {
-          console.log(`🔄 Processed ${i+1}/${totalRows} records (${successCount} successful, ${errorCount} errors)`);
-        }
+      await NetflixTicket.create(ticketData);
+      successCount++;
+      
+      // Show progress every 10 records or for the last record
+      if (successCount % 10 === 0 || i === rows.length - 1) {
+        console.log(`🔄 Processed ${i+1}/${totalRows} records (${successCount} successful, ${errorCount} errors)`);
+      }
       } catch (error) {
         errorCount++;
         console.error(`❌ Error inserting row ${i+1}:`, error.message);

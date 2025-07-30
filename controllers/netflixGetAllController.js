@@ -1,6 +1,7 @@
 const NetflixTicket = require('../models/Netflixupdateschema');
 const { google } = require('googleapis');
 const path = require('path');
+const UserData =  require('../models/UserSchema')
 require('dotenv').config();
 
 const auth = new google.auth.GoogleAuth({
@@ -77,7 +78,7 @@ exports.postticketsdata = async (req, res) => {
 
 exports.getNetflixTickets = async (req, res) => {
   try {
-    const { email, role, cm_region } = req.query;
+    const { email, cm_region } = req.query;
 
     const {
       status,
@@ -103,12 +104,17 @@ exports.getNetflixTickets = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Email is required' });
     }
 
-    if (role !== '0' && role !== '1') {
-      return res.status(400).json({ success: false, error: 'Invalid role specified' });
-    }
-
+    // if (role !== '0' && role !== '1') {
+    //   return res.status(400).json({ success: false, error: 'Invalid role specified' });
+    // }
+    
+    const ismail = await UserData.findOne({ emailId: email })
+    // console.log('ismail',ismail.role);
+    // console.log('ismail type',typeof(ismail.role));
+    const role = ismail.role
+    
     let isCM = false;
-    if (role === '1') {
+    if (role === 1) {
       const cmTicket = await NetflixTicket.findOne({ CM_email: email }).select('_id');
       if (!cmTicket) {
         return res.status(404).json({ success: false, error: 'No tickets found for this user' });
@@ -124,7 +130,7 @@ exports.getNetflixTickets = async (req, res) => {
     };
 
     let query = {};
-    if (role === '1') query.CM_email = email;
+    if (role === 1) query.CM_email = email;
     if (cm_region) query.cm_region = cm_region;
     if (status) query.status = status;
     if (startTime) query.startTime = startTime;
@@ -137,13 +143,11 @@ exports.getNetflixTickets = async (req, res) => {
   if (createdTo) query.created.$lte = createdTo;
 }
 
-
  if (updatedFrom || updatedTo) {
   query.updated = {};
   if (updatedFrom) query.updated.$gte = updatedFrom;
   if (updatedTo) query.updated.$lte = updatedTo;
 }
-
 
     // Multi/Single-select filters
     const multiFilters = [
@@ -177,7 +181,7 @@ exports.getNetflixTickets = async (req, res) => {
 
     // Base query for metrics
     let baseQuery = {};
-    if (role === '1') baseQuery.CM_email = email;
+    if (role === 1) baseQuery.CM_email = email;
     if (cm_region) baseQuery.cm_region = cm_region;
 
     const [total, assignedCount, closedCount] = await Promise.all([
@@ -188,7 +192,7 @@ exports.getNetflixTickets = async (req, res) => {
       NetflixTicket.countDocuments({ ...query, status: 'Closed' })
     ]);
 
-    if (role === '0' && total === 0) {
+    if (role === 0 && total === 0) {
       return res.status(404).json({ success: false, error: 'No tickets found for this user' });
     }
 
@@ -223,6 +227,369 @@ exports.getNetflixTickets = async (req, res) => {
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
+
+
+
+
+
+
+
+// exports.getNetflixTickets = async (req, res) => {
+//   try {
+//     const { email } = req.query;
+
+//     if (!email) {
+//       return res.status(400).json({ success: false, error: 'Email is required' });
+//     }
+
+//     // Get user from userdata collection
+//     const user = await UserData.findOne({ emailId: email });
+//     if (!user) {
+//       return res.status(404).json({ success: false, error: 'User not found' });
+//     }
+
+//     const role = user.role; // Number (0 or 1)
+//     const cm_region = user.region;
+
+//     // For CM users (role=1), verify they have at least one ticket
+//     if (role === 1) {
+//       const cmTicket = await NetflixTicket.findOne({ CM_email: email }).select('_id');
+//       if (!cmTicket) {
+//         return res.status(404).json({ 
+//           success: false, 
+//           error: 'No tickets found for this user' 
+//         });
+//       }
+//     }
+
+//     // Parse query parameters with default limit of 25 for all roles
+//     const {
+//       status,
+//       startTime,
+//       endTime,
+//       createdFrom,
+//       createdTo,
+//       updatedFrom,
+//       updatedTo,
+//       searchText,
+//       page = 1,
+//       limit = 25, // Default to 25 records per page for all roles
+//       ticketIDList,
+//       ticketKeyList,
+//       cmNameList,
+//       cmEmailList,
+//       amNameList,
+//       cmRegionList,
+//       statusList
+//     } = req.query;
+
+//     // Helper function for array filters
+//     const ensureArray = (value) => {
+//       if (!value) return null;
+//       if (Array.isArray(value)) return value;
+//       return String(value).split(',').map(v => v.trim()).filter(Boolean);
+//     };
+
+//     // Build base query
+//     let query = {};
+    
+//     // Role-based filtering
+//     if (role === 1) {
+//       query.CM_email = email; // Only show tickets for this CM
+//     }
+//     // For QM (role=0), no email filter is added (shows all tickets)
+
+//     // Region filter from userdata
+//     if (cm_region) {
+//       query.cm_region = cm_region;
+//     }
+
+//     // Status filter
+//     if (status) query.status = status;
+
+//     // Time range filters
+//     if (startTime) query.startTime = { $gte: startTime };
+//     if (endTime) query.endTime = { $lte: endTime };
+
+//     // Date created filters
+//     if (createdFrom || createdTo) {
+//       query.created = {};
+//       if (createdFrom) query.created.$gte = new Date(createdFrom);
+//       if (createdTo) query.created.$lte = new Date(createdTo);
+//     }
+
+//     // Date updated filters
+//     if (updatedFrom || updatedTo) {
+//       query.updated = {};
+//       if (updatedFrom) query.updated.$gte = new Date(updatedFrom);
+//       if (updatedTo) query.updated.$lte = new Date(updatedTo);
+//     }
+
+//     // Multi-select filters
+//     const multiFilters = [
+//       { key: 'ticketID', value: ensureArray(ticketIDList) },
+//       { key: 'ticketKey', value: ensureArray(ticketKeyList) },
+//       { key: 'CM_name', value: ensureArray(cmNameList) },
+//       { key: 'CM_email', value: ensureArray(cmEmailList) },
+//       { key: 'AM_name', value: ensureArray(amNameList) },
+//       { key: 'cm_region', value: ensureArray(cmRegionList) },
+//       { key: 'status', value: ensureArray(statusList) }
+//     ];
+
+//     multiFilters.forEach(({ key, value }) => {
+//       if (value && value.length > 0) {
+//         query[key] = { $in: value };
+//       }
+//     });
+
+//     // Text search
+//     if (searchText) {
+//       query.$or = [
+//         { ticketID: { $regex: searchText, $options: 'i' } },
+//         { ticketKey: { $regex: searchText, $options: 'i' } },
+//         { CM_name: { $regex: searchText, $options: 'i' } },
+//         { CM_email: { $regex: searchText, $options: 'i' } },
+//         { AM_name: { $regex: searchText, $options: 'i' } },
+//         { cm_region: { $regex: searchText, $options: 'i' } },
+//         { status: { $regex: searchText, $options: 'i' } }
+//       ];
+//     }
+
+//     // Get counts for metrics
+//     const [total, assignedCount, closedCount] = await Promise.all([
+//       NetflixTicket.countDocuments(query),
+//       NetflixTicket.countDocuments({ ...query, status: 'Assigned' }),
+//       NetflixTicket.countDocuments({ ...query, status: 'Closed' })
+//     ]);
+
+//     if (total === 0) {
+//       return res.status(404).json({ success: false, error: 'No tickets found' });
+//     }
+
+//     // Calculate pagination - always use the specified limit (default 25)
+//     const effectiveLimit = parseInt(limit);
+//     const effectivePage = parseInt(page);
+//     const skip = (effectivePage - 1) * effectiveLimit;
+
+//     // Get paginated results
+//     const tickets = await NetflixTicket.find(query)
+//       .sort({ updated: 1 })
+//       .skip(skip)
+//       .limit(effectiveLimit)
+//       .lean();
+
+//     // Process tickets
+//     const processedTickets = tickets.map(ticket => ({
+//       ...ticket,
+//       pauseTime: ticket.pauseTime || '00:00:00'
+//     }));
+
+//     // Return response
+//     res.status(200).json({
+//       success: true,
+//       count: processedTickets.length,
+//       total,
+//       totalPages: Math.ceil(total / effectiveLimit),
+//       currentPage: effectivePage,
+//       data: processedTickets,
+//       userType: role === 1 ? 'CM' : 'QM',
+//       metrics: {
+//         totalTickets: total,
+//         assignedTickets: assignedCount,
+//         closedTickets: closedCount
+//       },
+//       pagination: {
+//         recordsPerPage: effectiveLimit,
+//         showingRecords: `${skip + 1}-${Math.min(skip + effectiveLimit, total)} of ${total}`
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching tickets:', error);
+//     res.status(500).json({ 
+//       success: false, 
+//       error: 'Internal server error',
+//       message: error.message 
+//     });
+//   }
+// };
+
+
+
+
+
+// exports.getNetflixTickets = async (req, res) => {
+//   try {
+//     const { email } = req.query;
+
+//     // Validate email parameter
+//     if (!email) {
+//       return res.status(400).json({ success: false, error: 'Email is required' });
+//     }
+
+//     // Get user from userdata collection
+//     const user = await UserData.findOne({ emailId: email });
+//     if (!user) {
+//       return res.status(404).json({ success: false, error: 'User not found' });
+//     }
+
+//     const role = user.role; // Number (0 or 1)
+//     const cm_region = user.region; // Get region from userdata
+
+//     // For CM users (role=1), verify they have at least one ticket
+//     if (role === 1) {
+//       const cmTicket = await NetflixTicket.findOne({ CM_email: email }).select('_id');
+//       if (!cmTicket) {
+//         return res.status(404).json({ 
+//           success: false, 
+//           error: 'No tickets found for this user' 
+//         });
+//       }
+//     }
+
+//     // Get all query parameters
+//     const {
+//       status,
+//       startTime,
+//       endTime,
+//       createdFrom,
+//       createdTo,
+//       updatedFrom,
+//       updatedTo,
+//       searchText,
+//       page = 1,
+//       limit = 25,
+//       ticketIDList,
+//       ticketKeyList,
+//       cmNameList,
+//       cmEmailList,
+//       amNameList,
+//       cmRegionList,
+//       statusList
+//     } = req.query;
+
+//     // Helper function for array filters
+//     const ensureArray = (value) => {
+//       if (!value) return null;
+//       if (Array.isArray(value)) return value;
+//       return String(value).split(',').map(v => v.trim()).filter(Boolean);
+//     };
+
+//     // Build base query
+//     let query = {};
+    
+//     // Role-based filtering
+//     if (role === 1) {
+//       query.CM_email = email; // Only show tickets for this CM
+//     }
+//     // For QM (role=0), no email filter is added (shows all tickets)
+
+//     // Region filter from userdata
+//     if (cm_region) {
+//       query.cm_region = cm_region;
+//     }
+
+//     // Status filter
+//     if (status) query.status = status;
+
+//     // Time range filters
+//     if (startTime) query.startTime = { $gte: startTime };
+//     if (endTime) query.endTime = { $lte: endTime };
+
+//     // Date created filters
+//     if (createdFrom || createdTo) {
+//       query.created = {};
+//       if (createdFrom) query.created.$gte = new Date(createdFrom);
+//       if (createdTo) query.created.$lte = new Date(createdTo);
+//     }
+
+//     // Date updated filters
+//     if (updatedFrom || updatedTo) {
+//       query.updated = {};
+//       if (updatedFrom) query.updated.$gte = new Date(updatedFrom);
+//       if (updatedTo) query.updated.$lte = new Date(updatedTo);
+//     }
+
+//     // Multi-select filters
+//     const multiFilters = [
+//       { key: 'ticketID', value: ensureArray(ticketIDList) },
+//       { key: 'ticketKey', value: ensureArray(ticketKeyList) },
+//       { key: 'CM_name', value: ensureArray(cmNameList) },
+//       { key: 'CM_email', value: ensureArray(cmEmailList) },
+//       { key: 'AM_name', value: ensureArray(amNameList) },
+//       { key: 'cm_region', value: ensureArray(cmRegionList) },
+//       { key: 'status', value: ensureArray(statusList) }
+//     ];
+
+//     multiFilters.forEach(({ key, value }) => {
+//       if (value && value.length > 0) {
+//         query[key] = { $in: value };
+//       }
+//     });
+
+//     // Text search
+//     if (searchText) {
+//       query.$or = [
+//         { ticketID: { $regex: searchText, $options: 'i' } },
+//         { ticketKey: { $regex: searchText, $options: 'i' } },
+//         { CM_name: { $regex: searchText, $options: 'i' } },
+//         { CM_email: { $regex: searchText, $options: 'i' } },
+//         { AM_name: { $regex: searchText, $options: 'i' } },
+//         { cm_region: { $regex: searchText, $options: 'i' } },
+//         { status: { $regex: searchText, $options: 'i' } }
+//       ];
+//     }
+
+//     // Get counts for metrics
+//     const [total, assignedCount, closedCount] = await Promise.all([
+//       NetflixTicket.countDocuments(query),
+//       NetflixTicket.countDocuments({ ...query, status: 'Assigned' }),
+//       NetflixTicket.countDocuments({ ...query, status: 'Closed' })
+//     ]);
+
+//     if (total === 0) {
+//       return res.status(404).json({ success: false, error: 'No tickets found' });
+//     }
+
+//     // Get paginated results
+//     const tickets = await NetflixTicket.find(query)
+//       .sort({ updated: 1 })
+//       .skip((page - 1) * limit)
+//       .limit(parseInt(limit))
+//       .lean();
+
+//     // Process tickets
+//     const processedTickets = tickets.map(ticket => ({
+//       ...ticket,
+//       pauseTime: ticket.pauseTime || '00:00:00'
+//     }));
+
+//     // Return response
+//     res.status(200).json({
+//       success: true,
+//       count: processedTickets.length,
+//       total,
+//       totalPages: Math.ceil(total / limit),
+//       currentPage: parseInt(page),
+//       data: processedTickets,
+//       userType: role === 1 ? 'CM' : 'QM',
+//       metrics: {
+//         totalTickets: total,
+//         assignedTickets: assignedCount,
+//         closedTickets: closedCount
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching tickets:', error);
+//     res.status(500).json({ 
+//       success: false, 
+//       error: 'Internal server error',
+//       message: error.message 
+//     });
+//   }
+// };
+
 
 
 
