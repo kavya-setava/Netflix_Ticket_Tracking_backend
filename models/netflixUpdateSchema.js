@@ -6,7 +6,8 @@ const CounterSchema = new Schema({
   _id: { type: String, required: true },
   seq: { type: Number, default: 0 }
 });
-const Counter = mongoose.model('Counter', CounterSchema);
+// const Counter = mongoose.model('Counter', CounterSchema);
+const Counter = mongoose.models.Counter || mongoose.model('Counter', CounterSchema);
 
 // Main Schema
 const NetflixTicketsSchema = new Schema({
@@ -36,7 +37,7 @@ updated: {
   },
   cm_region: {
     type: String,
-    enum: ['', 'NA', 'EMEA', 'APAC', 'LATAM', 'UCAN'],
+    // enum: ['', 'NA', 'EMEA', 'APAC', 'LATAM', 'UCAN'],
     default: ''
   },
   AM_name: {
@@ -92,4 +93,6 @@ NetflixTicketsSchema.pre('save', async function(next) {
 });
 
 
-module.exports = mongoose.model('NetflixTicket', NetflixTicketsSchema);
+// module.exports = mongoose.model('NetflixTicket', NetflixTicketsSchema);
+const NetflixTicket = mongoose.models.NetflixTicket || mongoose.model('NetflixTicket', NetflixTicketsSchema);
+module.exports = NetflixTicket;

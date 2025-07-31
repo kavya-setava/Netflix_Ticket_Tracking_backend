@@ -127,11 +127,14 @@
 
 
 
+
+
+
+
 const mongoose = require('mongoose');
 const { google } = require('googleapis');
 const NetflixTicket = require('../models/netflixUpdateSchema');
 const cron = require('node-cron');
-
 
 // Configuration
 const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
@@ -231,27 +234,24 @@ async function migrateData() {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-      const ticketData = {
-  ticketKey: row[columnMap.ticketKey],
-  created: row[columnMap.created],  // Store as string from sheet (with time zone)
-  updated: row[columnMap.updated],  // Store as string from sheet (with time zone)
-  AM_name: row[columnMap.AM_name],
-  CM_name: row[columnMap.CM_name],
-  CM_email: row[columnMap.CM_email],
-  cm_region: row[columnMap.cm_region],
-  status: row[columnMap.status],
-  // updateddate: parseExcelDate(row[columnMap.updated]) || new Date(),
-  // latest_created_date: parseExcelDate(row[columnMap.created]) || new Date()
-};
+        const ticketData = {
+          ticketKey: row[columnMap.ticketKey],
+          created: row[columnMap.created],  // Store as string from sheet (with time zone)
+          updated: row[columnMap.updated],  // Store as string from sheet (with time zone)
+          AM_name: row[columnMap.AM_name],
+          CM_name: row[columnMap.CM_name],
+          CM_email: row[columnMap.CM_email],
+          cm_region: row[columnMap.cm_region],
+          status: row[columnMap.status],
+        };
 
-
-      await NetflixTicket.create(ticketData);
-      successCount++;
-      
-      // Show progress every 10 records or for the last record
-      if (successCount % 10 === 0 || i === rows.length - 1) {
-        console.log(`🔄 Processed ${i+1}/${totalRows} records (${successCount} successful, ${errorCount} errors)`);
-      }
+        await NetflixTicket.create(ticketData);
+        successCount++;
+        
+        // Show progress every 10 records or for the last record
+        if (successCount % 10 === 0 || i === rows.length - 1) {
+          console.log(`🔄 Processed ${i+1}/${totalRows} records (${successCount} successful, ${errorCount} errors)`);
+        }
       } catch (error) {
         errorCount++;
         console.error(`❌ Error inserting row ${i+1}:`, error.message);
@@ -280,13 +280,13 @@ async function migrateData() {
   }
 }
 
+// Schedule the cron job after all functions are defined
+// cron.schedule('* * * * *', async () => {
+//   console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
+//   await migrateData();
+// });
 
-// it will run when program runs
+// Uncomment if you want to run immediately when the program starts
 // migrateData();
 
-
-// it will run for every hour like 7:00 , 8:00 .. 
-cron.schedule('0 * * * *', async () => {
-  console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
-  await migrateData();
-});
+module.exports = { migrateData };
