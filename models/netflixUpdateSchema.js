@@ -6,7 +6,8 @@ const CounterSchema = new Schema({
   _id: { type: String, required: true },
   seq: { type: Number, default: 0 }
 });
-const Counter = mongoose.model('Counter', CounterSchema);
+// const Counter = mongoose.model('Counter', CounterSchema);
+const Counter = mongoose.models.Counter || mongoose.model('Counter', CounterSchema);
 
 // Main Schema
 const NetflixTicketsSchema = new Schema({
@@ -14,17 +15,29 @@ const NetflixTicketsSchema = new Schema({
     type: String,
     
   },
-  ticketKey: String,
-  created: Date,
-  updated: Date,
-  CM_name: String,
+  ticketKey: {
+    type: String,
+  },
+  // created: String,
+  // updated: String,
+  created: {
+  type: String,
+ 
+},
+updated: {
+  type: String,
+ 
+},
+  CM_name: {
+    type: String,
+  },
   CM_email: {
     type: String,
     match: [/.+\@.+\..+/, 'Please fill a valid email address']
   },
   cm_region: {
     type: String,
-    enum: ['', 'NA', 'EMEA', 'APAC', 'LATAM', 'UCAN'],
+    // enum: ['', 'NA', 'EMEA', 'APAC', 'LATAM', 'UCAN'],
     default: ''
   },
   AM_name: {
@@ -35,10 +48,7 @@ const NetflixTicketsSchema = new Schema({
     type: String,  // Changed to String (default empty)
     default: "00:00:00"
   },
-  // lastBreachCheck: {
-  //   type: String,  // Changed to String (default empty)
-  //   default: ""
-  // },
+ 
   latest_created_date: {
     type: Date,
     default: Date.now
@@ -48,6 +58,10 @@ const NetflixTicketsSchema = new Schema({
     default: '00:00:00'
   },
   endTime: {
+    type: String,
+    default: '00:00:00'
+  },
+   pauseTime: {
     type: String,
     default: '00:00:00'
   },
@@ -78,11 +92,7 @@ NetflixTicketsSchema.pre('save', async function(next) {
   }
 });
 
-// Auto-update 'updated' timestamp (no SLA calculation)
-NetflixTicketsSchema.pre('save', function(next) {
-  this.updated = new Date();
-  if (this.isNew) this.created = this.updated;
-  next();
-});
 
-module.exports = mongoose.model('NetflixTicket', NetflixTicketsSchema);
+// module.exports = mongoose.model('NetflixTicket', NetflixTicketsSchema);
+const NetflixTicket = mongoose.models.NetflixTicket || mongoose.model('NetflixTicket', NetflixTicketsSchema);
+module.exports = NetflixTicket;

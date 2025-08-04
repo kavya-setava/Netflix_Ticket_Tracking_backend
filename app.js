@@ -6,9 +6,13 @@ const connectDB = require('./DataBase/db');
 const netflixRoutes = require('./routes/netflixGetAllData.js'); // adjust path as needed
 const authRoutes = require('./routes/authRoute.js')
 //const route = require('./routes/indexRoute');
+const { migrateData } = require('./scripts/excelDataToDb.js');
+const cron = require('node-cron');
 
 dotenv.config();
 connectDB();
+
+
 
 
 app.use(cors({
@@ -22,6 +26,11 @@ app.use(express.json());
 app.use('/api', netflixRoutes); 
 
 app.use('/api/google', authRoutes); // ✅ Route middleware registered only once
+
+cron.schedule('0 * * * * ', async () => {
+  console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
+  await migrateData();
+});
 
 
 app.get('/', (req, res) => {

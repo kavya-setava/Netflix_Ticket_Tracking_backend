@@ -130,150 +130,11 @@
 
 
 
-// const mongoose = require('mongoose');
-// const { google } = require('googleapis');
-// const NetflixTicket = require('../models/NetflixUpdateSchema');
-
-// // Configuration
-// const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
-// const SHEET_NAME = 'Sheet1';
-// const RANGE = 'A1:H';
-// const mongoURI = 'mongodb+srv://mcube:123@cluster0.mvb09va.mongodb.net/netflix_db';
-// const API_KEY = 'AIzaSyAd7mk5rSyABQQyr40r3gWMs0ZMuMWE_Hw';
-
-// async function getSheetData() {
-//   try {
-//     const sheets = google.sheets({
-//       version: 'v4',
-//       auth: API_KEY
-//     });
-
-//     const response = await sheets.spreadsheets.values.get({
-//       spreadsheetId: SPREADSHEET_ID,
-//       range: `${SHEET_NAME}!${RANGE}`,
-//     });
-    
-//     const [headers, ...rows] = response.data.values;
-//     return { headers, rows };
-//   } catch (error) {
-//     console.error('Error reading Google Sheet:', error.message);
-//     if (error.response && error.response.status === 403) {
-//       console.error('\nERROR: The sheet is probably not public.');
-//       console.error('Solution: Either make the sheet public or use service account credentials.');
-//     }
-//     process.exit(1);
-//   }
-// }
-
-// async function migrateData() {
-//   const startTime = new Date(); // Start timer for entire operation
-  
-//   try {
-//     // Connect to MongoDB
-//     console.log('⌛ Connecting to MongoDB...');
-//     await mongoose.connect(mongoURI);
-//     console.log('✅ Connected to MongoDB');
-
-//     // Delete existing data
-//     console.log('⌛ Deleting existing records...');
-//     const deleteResult = await NetflixTicket.deleteMany({});
-//     console.log(`♻️ Deleted ${deleteResult.deletedCount} existing records`);
-
-//     // Get data from Google Sheet
-//     console.log('⌛ Fetching data from Google Sheet...');
-//     const { headers, rows } = await getSheetData();
-    
-//     if (!rows || rows.length === 0) {
-//       throw new Error('❌ No data found in the sheet');
-//     }
-
-//     console.log(`📊 Found ${rows.length} rows in Google Sheet`);
-
-//     // Create column mapping
-//     const columnMap = {
-//       ticketKey: headers.indexOf('Issue key'),
-//       created: headers.indexOf('Created'),
-//       updated: headers.indexOf('Updated'),
-//       AM_name: headers.indexOf('Reporter'),
-//       CM_name: headers.indexOf('Assignee'),
-//       CM_email: headers.indexOf('Assignee_mail_id'),
-//       cm_region: headers.indexOf('Assignee_region'),
-//       status: headers.indexOf('Status')
-//     };
-
-//     // Verify all required columns exist
-//     for (const [field, index] of Object.entries(columnMap)) {
-//       if (index === -1) {
-//         throw new Error(`❌ Required column not found for field: ${field}`);
-//       }
-//     }
-
-//     // Process and insert tickets
-//     let successCount = 0;
-//     let errorCount = 0;
-//     const totalRows = rows.length;
-//     const dbInsertStart = new Date(); // Start timer for DB insertion
-
-//     console.log('⏳ Starting data migration...');
-    
-//     for (let i = 0; i < rows.length; i++) {
-//       const row = rows[i];
-//       try {
-//         const ticketData = {
-//           ticketKey: row[columnMap.ticketKey],
-//           created: new Date(row[columnMap.created]),
-//           updated: new Date(row[columnMap.updated]),
-//           AM_name: row[columnMap.AM_name],
-//           CM_name: row[columnMap.CM_name],
-//           CM_email: row[columnMap.CM_email],
-//           cm_region: row[columnMap.cm_region],
-//           status: row[columnMap.status],
-//           updateddate: new Date()
-//         };
-
-//         await NetflixTicket.create(ticketData);
-//         successCount++;
-        
-//         // Show progress every 10 records or for the last record
-//         if (successCount % 10 === 0 || i === rows.length - 1) {
-//           console.log(`🔄 Processed ${i+1}/${totalRows} records (${successCount} successful, ${errorCount} errors)`);
-//         }
-//       } catch (error) {
-//         errorCount++;
-//         console.error(`❌ Error inserting row ${i+1}:`, error.message);
-//       }
-//     }
-
-//     const dbInsertEnd = new Date(); // End timer for DB insertion
-//     const dbInsertTime = (dbInsertEnd - dbInsertStart) / 1000; // Convert to seconds
-
-//     console.log('\n📊 Migration Summary:');
-//     console.log(`✅ Successfully inserted: ${successCount} records`);
-//     console.log(`❌ Failed to insert: ${errorCount} records`);
-//     console.log(`📋 Total rows processed: ${totalRows}`);
-//     console.log(`⏱️ Data storage time: ${dbInsertTime.toFixed(2)} seconds`);
-//     console.log(`📈 Insertion rate: ${(successCount/dbInsertTime).toFixed(2)} records/second`);
-
-//     await mongoose.disconnect();
-//     console.log('🛑 Disconnected from MongoDB');
-
-//     const totalTime = (new Date() - startTime) / 1000;
-//     console.log(`\n🏁 Total operation time: ${totalTime.toFixed(2)} seconds`);
-//   } catch (error) {
-//     console.error('⛔ Error during data migration:', error);
-//     process.exit(1);
-//   }
-// }
-
-// migrateData();
-
-
-
-
 
 const mongoose = require('mongoose');
 const { google } = require('googleapis');
 const NetflixTicket = require('../models/netflixUpdateSchema');
+const cron = require('node-cron');
 
 // Configuration
 const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
@@ -375,15 +236,13 @@ async function migrateData() {
       try {
         const ticketData = {
           ticketKey: row[columnMap.ticketKey],
-          created: parseExcelDate(row[columnMap.created]),
-          updated: parseExcelDate(row[columnMap.updated]),
+          created: row[columnMap.created],  // Store as string from sheet (with time zone)
+          updated: row[columnMap.updated],  // Store as string from sheet (with time zone)
           AM_name: row[columnMap.AM_name],
           CM_name: row[columnMap.CM_name],
           CM_email: row[columnMap.CM_email],
           cm_region: row[columnMap.cm_region],
           status: row[columnMap.status],
-          // Remove updateddate or set it to the parsed updated date if you need it
-          updateddate: parseExcelDate(row[columnMap.updated]) || new Date()
         };
 
         await NetflixTicket.create(ticketData);
@@ -403,149 +262,31 @@ async function migrateData() {
     const dbInsertEnd = new Date();
     const dbInsertTime = (dbInsertEnd - dbInsertStart) / 1000;
 
-    console.log('\n📊 Migration Summary:');
-    console.log(`✅ Successfully inserted: ${successCount} records`);
-    console.log(`❌ Failed to insert: ${errorCount} records`);
-    console.log(`📋 Total rows processed: ${totalRows}`);
-    console.log(`⏱️ Data storage time: ${dbInsertTime.toFixed(2)} seconds`);
-    console.log(`📈 Insertion rate: ${(successCount/dbInsertTime).toFixed(2)} records/second`);
+    console.log('\n Migration Summary:');
+    console.log(` Successfully inserted: ${successCount} records`);
+    console.log(` Failed to insert: ${errorCount} records`);
+    console.log(` Total rows processed: ${totalRows}`);
+    console.log(` Data storage time: ${dbInsertTime.toFixed(2)} seconds`);
+    console.log(` Insertion rate: ${(successCount/dbInsertTime).toFixed(2)} records/second`);
 
     await mongoose.disconnect();
-    console.log('🛑 Disconnected from MongoDB');
+    console.log(' Disconnected from MongoDB');
 
     const totalTime = (new Date() - startTime) / 1000;
-    console.log(`\n🏁 Total operation time: ${totalTime.toFixed(2)} seconds`);
+    console.log(`\n Total operation time: ${totalTime.toFixed(2)} seconds`);
   } catch (error) {
-    console.error('⛔ Error during data migration:', error);
+    console.error(' Error during data migration:', error);
     process.exit(1);
   }
 }
 
-migrateData();
+// Schedule the cron job after all functions are defined
+// cron.schedule('* * * * *', async () => {
+//   console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
+//   await migrateData();
+// });
 
-
-
-
-// const mongoose = require('mongoose');
-// const { google } = require('googleapis');
-// const NetflixTicket = require('../models/NetflixUpdateSchema');
-
-// // Configuration
-// const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
-// const SHEET_NAME = 'Sheet1';
-// const RANGE = 'A1:H';
-// const mongoURI = 'mongodb+srv://mcube:123@cluster0.mvb09va.mongodb.net/netflix_db';
-// const API_KEY = 'AIzaSyAd7mk5rSyABQQyr40r3gWMs0ZMuMWE_Hw';
-
-// async function getSheetData() {
-//   try {
-//     const sheets = google.sheets({
-//       version: 'v4',
-//       auth: API_KEY
-//     });
-
-//     const response = await sheets.spreadsheets.values.get({
-//       spreadsheetId: SPREADSHEET_ID,
-//       range: `${SHEET_NAME}!${RANGE}`,
-//     });
-    
-//     const [headers, ...rows] = response.data.values;
-//     return { headers, rows };
-//   } catch (error) {
-//     console.error('Error reading Google Sheet:', error.message);
-//     if (error.response && error.response.status === 403) {
-//       console.error('\nERROR: The sheet is probably not public.');
-//       console.error('Solution: Either make the sheet public or use service account credentials.');
-//     }
-//     process.exit(1);
-//   }
-// }
-
-// async function migrateData() {
-//   try {
-//     // Connect to MongoDB
-//     await mongoose.connect(mongoURI);
-//     console.log('✅ Connected to MongoDB');
-
-//     // Delete existing data
-//     const deleteResult = await NetflixTicket.deleteMany({});
-//     console.log(`♻️ Deleted ${deleteResult.deletedCount} existing records`);
-
-//     // Get data from Google Sheet
-//     const { headers, rows } = await getSheetData();
-    
-//     if (!rows || rows.length === 0) {
-//       throw new Error('❌ No data found in the sheet');
-//     }
-
-//     console.log(`📊 Found ${rows.length} rows in Google Sheet`);
-
-//     // Create column mapping
-//     const columnMap = {
-//       ticketKey: headers.indexOf('Issue key'),
-//       created: headers.indexOf('Created'),
-//       updated: headers.indexOf('Updated'),
-//       AM_name: headers.indexOf('Reporter'),
-//       CM_name: headers.indexOf('Assignee'),
-//       CM_email: headers.indexOf('Assignee_mail_id'),
-//       cm_region: headers.indexOf('Assignee_region'),
-//       status: headers.indexOf('Status')
-//     };
-
-//     // Verify all required columns exist
-//     for (const [field, index] of Object.entries(columnMap)) {
-//       if (index === -1) {
-//         throw new Error(`❌ Required column not found for field: ${field}`);
-//       }
-//     }
-
-//     // Process and insert tickets one by one with progress tracking
-//     let successCount = 0;
-//     let errorCount = 0;
-//     const totalRows = rows.length;
-
-//     console.log('⏳ Starting data migration...');
-    
-//     for (let i = 0; i < rows.length; i++) {
-//       const row = rows[i];
-//       try {
-//         const ticketData = {
-//           ticketKey: row[columnMap.ticketKey],
-//           created: new Date(row[columnMap.created]),
-//           updated: new Date(row[columnMap.updated]),
-//           AM_name: row[columnMap.AM_name],
-//           CM_name: row[columnMap.CM_name],
-//           CM_email: row[columnMap.CM_email],
-//           cm_region: row[columnMap.cm_region],
-//           status: row[columnMap.status],
-//           updateddate: new Date()
-//         };
-
-//         const ticket = await NetflixTicket.create(ticketData);
-//         successCount++;
-        
-//         // Show progress every 10 records or for the last record
-//         if (successCount % 10 === 0 || i === rows.length - 1) {
-//           console.log(`🔄 Processed ${i+1}/${totalRows} records (${successCount} successful, ${errorCount} errors)`);
-//         }
-//       } catch (error) {
-//         errorCount++;
-//         console.error(`❌ Error inserting row ${i+1}:`, error.message);
-//         console.error('Problematic row data:', row);
-//       }
-//     }
-
-//     console.log('\n📊 Migration Summary:');
-//     console.log(`✅ Successfully inserted: ${successCount} records`);
-//     console.log(`❌ Failed to insert: ${errorCount} records`);
-//     console.log(`📋 Total rows processed: ${totalRows}`);
-
-//     await mongoose.disconnect();
-//     console.log('🛑 Disconnected from MongoDB');
-//   } catch (error) {
-//     console.error('⛔ Error during data migration:', error);
-//     process.exit(1);
-//   }
-// }
-
+// Uncomment if you want to run immediately when the program starts
 // migrateData();
+
+module.exports = { migrateData };
