@@ -33,7 +33,7 @@ updated: {
   },
   CM_email: {
     type: String,
-    match: [/.+\@.+\..+/, 'Please fill a valid email address']
+    // match: [/.+\@.+\..+/, 'Please fill a valid email address']
   },
   cm_region: {
     type: String,
