@@ -1,8 +1,10 @@
-const express = require('express');
-const router = express.Router();
-const { googleLogin, googleCallback } = require('../controllers/authController');
+const express = require("express");
+const { googleSignIn, googleLogin, googleCallback } = require("../controllers/authController");
 
-router.get('/login', googleLogin);
-router.get('/callback', googleCallback);
+const router = express.Router();
+
+router.get("/login", googleLogin); // NOT /undefined/login!
+
+router.post("/signin", googleSignIn); // Usually POST /api/google
 
 module.exports = router;
