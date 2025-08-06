@@ -27,10 +27,13 @@ app.use('/api', netflixRoutes);
 
 app.use('/api/google', authRoutes); // ✅ Route middleware registered only once
 
-cron.schedule('0 * * * * ', async () => {
+cron.schedule('*/10 * * * *', async () => {
   console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
   await migrateData();
 });
+
+// */30 * * * *
+// */10 * * * *
 
 
 app.get('/', (req, res) => {

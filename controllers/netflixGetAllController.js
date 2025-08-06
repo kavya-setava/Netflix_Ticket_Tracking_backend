@@ -172,17 +172,43 @@ exports.getNetflixTickets = async (req, res) => {
     if (startTime) query.startTime = startTime;
     if (endTime) query.endTime = endTime;
 
-    if (createdFrom || createdTo) {
-      query.created = {};
-      if (createdFrom) query.created.$gte = createdFrom;
-      if (createdTo) query.created.$lte = createdTo;
-    }
+    // if (createdFrom || createdTo) {
+    //   query.created = {};
+    //   if (createdFrom) query.created.$gte = createdFrom;
+    //   if (createdTo) query.created.$lte = createdTo;
+    // }
 
-    if (updatedFrom || updatedTo) {
-      query.updated = {};
-      if (updatedFrom) query.updated.$gte = updatedFrom;
-      if (updatedTo) query.updated.$lte = updatedTo;
-    }
+    // if (updatedFrom || updatedTo) {
+    //   query.updated = {};
+    //   if (updatedFrom) query.updated.$gte = updatedFrom;
+    //   if (updatedTo) query.updated.$lte = updatedTo;
+    // }
+
+   const normalizeDate = (dateString, isStart) => {
+  const date = new Date(dateString);
+  console.log('date',date);
+  
+  if (isStart) {
+    date.setHours(0, 0, 0, 0); // Start of day: 00:00:00.000
+  } else {
+    date.setHours(23, 59, 59, 999); // End of day: 23:59:59.999
+  }
+  return date;
+};
+
+
+if (createdFrom || createdTo) {
+  query.created = {};
+  if (createdFrom) query.created.$gte = normalizeDate(createdFrom, true);
+  if (createdTo) query.created.$lte = normalizeDate(createdTo, false);
+}
+
+if (updatedFrom || updatedTo) {
+  query.updated = {};
+  if (updatedFrom) query.updated.$gte = normalizeDate(updatedFrom, true);
+  if (updatedTo) query.updated.$lte = normalizeDate(updatedTo, false);
+}
+
 
     const multiFilters = [
       { key: 'ticketID', value: ensureArray(ticketIDList) },
@@ -223,7 +249,7 @@ exports.getNetflixTickets = async (req, res) => {
     }
 
     const tickets = await NetflixTicket.find(query)
-      .sort({ updated: 1 })
+      .sort({ updated: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .lean();
