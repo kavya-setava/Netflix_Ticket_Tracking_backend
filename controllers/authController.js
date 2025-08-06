@@ -19,6 +19,42 @@ const googleLogin = (req, res) => {
     res.json({ message: "Copy this URL and open in browser", authUrl });
 };
 
+// ⬇️ STEP 2: Handle Callback and Redirect to Frontend
+    const googleCallback = async (req, res) => {
+                try {
+                    const { code, app } = req.query; // 'app' param determines frontend (e.g., 'angular' or 'react')
+
+                    if (!code) {
+                        return res.status(400).json({ message: "❌ No authorization code provided" });
+                    }
+
+                    console.log("🔹 Received Google OAuth Code:", code);
+
+                    const params = new URLSearchParams();
+                    params.append("code", code);
+                    params.append("client_id", process.env.GOOGLE_CLIENT_ID);
+                    params.append("client_secret", process.env.GOOGLE_CLIENT_SECRET);
+                    params.append("redirect_uri", process.env.REDIRECT_URI);
+                    params.append("grant_type", "authorization_code");
+
+                    const tokenResponse = await axios.post(GOOGLE_TOKEN_URL, params, {
+                        headers: {
+                            "Content-Type": "application/x-www-form-urlencoded",
+                        },
+                    });
+
+                    const { access_token, id_token } = tokenResponse.data;
+
+                    console.log("✅ Google Tokens:", tokenResponse.data);
+
+                
+                    res.redirect(`http://localhost:5173/login?access_token=${access_token}&id_token=${id_token}`);
+                } catch (error) {
+                    console.error("❌ Google Token Exchange Error:", error.response?.data || error.message);
+                    res.status(500).json({ message: "❌ Failed to get Google tokens" });
+                }
+            };
+
 
 // ⬇️ STEP 3: Use ID Token to login user via backend
 const googleSignIn = async (req, res) => {

@@ -4,7 +4,7 @@ const { googleSignIn, googleLogin, googleCallback } = require("../controllers/au
 const router = express.Router();
 
 router.get("/login", googleLogin); // NOT /undefined/login!
-
+router.get("/callback", googleCallback);
 router.post("/signin", googleSignIn); // Usually POST /api/google
 
 module.exports = router;
