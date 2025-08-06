@@ -25,7 +25,7 @@ app.use(express.json());
 // app.use('/api', route);
 app.use('/api', netflixRoutes); 
 
-app.use('/api/google', authRoutes); // ✅ Route middleware registered only once
+app.use('/api/google', authRoutes);
 
 cron.schedule('0 * * * * ', async () => {
   console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
