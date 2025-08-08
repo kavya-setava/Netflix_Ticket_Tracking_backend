@@ -116,6 +116,203 @@ function formatTimeRemaining(ms) {
 }
 
 // Main Express API
+// exports.getNetflixTickets = async (req, res) => {
+//   try {
+//     const { email, cm_region } = req.query;
+//     const {
+//       status,
+//       startTime,
+//       endTime,
+//       createdFrom,
+//       createdTo,
+//       updatedFrom,
+//       updatedTo,
+//       searchText,
+//       page = 1,
+//       limit = 25,
+//       ticketIDList,
+//       ticketKeyList,
+//       cmNameList,
+//       cmEmailList,
+//       amNameList,
+//       cmRegionList,
+//       statusList
+//     } = req.query;
+
+//     if (!email) {
+//       return res.status(400).json({ success: false, error: 'Email is required' });
+//     }
+
+//     const user = await UserData.findOne({ emailId: email });
+//     if (!user) {
+//       return res.status(404).json({ success: false, error: 'User not found' });
+//     }
+
+//     const role = user.role;
+//     let isCM = false;
+
+//     if (role === 1) {
+//       const cmTicket = await NetflixTicket.findOne({ CM_email: email }).select('_id');
+//       if (!cmTicket) {
+//         return res.status(404).json({ success: false, error: 'No tickets found for this user' });
+//       }
+//       isCM = true;
+//     }
+
+//     const ensureArray = (value) => {
+//       if (!value) return null;
+//       if (Array.isArray(value)) return value;
+//       return String(value).split(',').map((v) => v.trim()).filter(Boolean);
+//     };
+
+//     let query = {};
+//     if (role === 1) query.CM_email = email;
+//     if (cm_region) query.cm_region = cm_region;
+//     if (status) query.status = status;
+//     if (startTime) query.startTime = startTime;
+//     if (endTime) query.endTime = endTime;
+
+//     if (createdFrom || createdTo) {
+//       query.created = {};
+//       if (createdFrom) query.created.$gte = createdFrom;
+//       if (createdTo) query.created.$lte = createdTo;
+//     }
+
+//     if (updatedFrom || updatedTo) {
+//       query.updated = {};
+//       if (updatedFrom) query.updated.$gte = updatedFrom;
+//       if (updatedTo) query.updated.$lte = updatedTo;
+//     }
+
+//     const multiFilters = [
+//       { key: 'ticketID', value: ensureArray(ticketIDList) },
+//       { key: 'ticketKey', value: ensureArray(ticketKeyList) },
+//       { key: 'CM_name', value: ensureArray(cmNameList) },
+//       { key: 'CM_email', value: ensureArray(cmEmailList) },
+//       { key: 'AM_name', value: ensureArray(amNameList) },
+//       { key: 'cm_region', value: ensureArray(cmRegionList) },
+//       { key: 'status', value: ensureArray(statusList) }
+//     ];
+
+//     multiFilters.forEach(({ key, value }) => {
+//       if (value && value.length > 0) {
+//         query[key] = { $in: value };
+//       }
+//     });
+
+//     if (searchText) {
+//       query.$or = [
+//         { ticketID: { $regex: searchText, $options: 'i' } },
+//         { ticketKey: { $regex: searchText, $options: 'i' } },
+//         { CM_name: { $regex: searchText, $options: 'i' } },
+//         { CM_email: { $regex: searchText, $options: 'i' } },
+//         { AM_name: { $regex: searchText, $options: 'i' } },
+//         { cm_region: { $regex: searchText, $options: 'i' } },
+//         { status: { $regex: searchText, $options: 'i' } }
+//       ];
+//     }
+
+//     const [total, assignedCount, closedCount] = await Promise.all([
+//       NetflixTicket.countDocuments(query),
+//       NetflixTicket.countDocuments({ ...query, status: 'Assigned' }),
+//       NetflixTicket.countDocuments({ ...query, status: 'Closed' })
+//     ]);
+
+//     if (role === 0 && total === 0) {
+//       return res.status(404).json({ success: false, error: 'No tickets found' });
+//     }
+
+//     const tickets = await NetflixTicket.find(query)
+//       .sort({ updated: 1 })
+//       .skip((page - 1) * limit)
+//       .limit(parseInt(limit))
+//       .lean();
+
+//     const processedTickets = tickets.map(ticket => {
+//       const updatedTime = parseISTDate(ticket.updated);
+//       const slaDeadline = new Date(updatedTime.getTime() + (2 * 60 * 60 * 1000));
+//       const nowIST = getCurrentIST();
+
+//       const timeRemainingMs = slaDeadline.getTime() - nowIST.getTime();
+//       const timeRemaining = formatTimeRemaining(timeRemainingMs);
+//       const isBreached = timeRemainingMs <= 0;
+
+//       let status = 'Normal';
+//       if (isBreached) {
+//         status = 'Breached';
+//       } else if (timeRemainingMs < 3600000) {
+//         status = 'Critical';
+//       }
+
+
+//       function formatISTDateYMD(date) {
+//   const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+
+//   const yyyy = istDate.getFullYear();
+//   const mm = String(istDate.getMonth() + 1).padStart(2, '0');
+//   const dd = String(istDate.getDate()).padStart(2, '0');
+//   const hh = String(istDate.getHours()).padStart(2, '0');
+//   const mi = String(istDate.getMinutes()).padStart(2, '0');
+//   const ss = String(istDate.getSeconds()).padStart(2, '0');
+
+//   return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+// }
+
+
+//       return {
+//         ...ticket,
+//         pauseTime: ticket.pauseTime || '00:00:00',
+//         slaData: {
+//           deadline: formatISTDateYMD(slaDeadline),
+//           timeRemaining,
+//           isBreached,
+//           status,
+//           debug: {
+//             localUpdated: updatedTime.toString(),
+//             localDeadline: slaDeadline.toString(),
+//             localNow: nowIST.toString()
+//           }
+//         }
+//       };
+//     });
+
+//     const breachedSLAs = processedTickets.filter(t => t.slaData.isBreached).length;
+//     const criticalSLAs = processedTickets.filter(t => t.slaData.status === 'Critical').length;
+//     const normalSLAs = processedTickets.filter(t => t.slaData.status === 'Normal').length;
+
+//     res.status(200).json({
+//       success: true,
+//       count: processedTickets.length,
+//       total,
+//       totalPages: Math.ceil(total / limit),
+//       currentPage: parseInt(page),
+//       data: processedTickets,
+//       userType: isCM ? 'CM' : 'QM',
+//       metrics: {
+//         totalTickets: total,
+//         assignedTickets: assignedCount,
+//         closedTickets: closedCount,
+//         slaMetrics: {
+//           breached: breachedSLAs,
+//           critical: criticalSLAs,
+//           normal: normalSLAs
+//         }
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching tickets:', error);
+//     res.status(500).json({ success: false, error: 'Internal server error' });
+//   }
+// };
+
+
+
+
+
+
+
+
 exports.getNetflixTickets = async (req, res) => {
   try {
     const { email, cm_region } = req.query;
@@ -229,12 +426,38 @@ exports.getNetflixTickets = async (req, res) => {
       .lean();
 
     const processedTickets = tickets.map(ticket => {
+      // Special case for 'Need More Info' status
+      if (ticket.status === 'Need More Information' || ticket.status === 'Closed' || ticket.status === 'Sent to VAO') {
+        return {
+          ...ticket,
+          pauseTime: ticket.pauseTime || '00:00:00',
+          slaData: {
+            deadline: 'N/A',
+            timeRemaining: '00:00:00',
+            isBreached: false,
+            status: 'Not Applicable',
+            debug: {
+              info: 'SLA not applicable for Need More Info or Closed status'
+            }
+          }
+        };
+      }
+
       const updatedTime = parseISTDate(ticket.updated);
       const slaDeadline = new Date(updatedTime.getTime() + (2 * 60 * 60 * 1000));
       const nowIST = getCurrentIST();
 
       const timeRemainingMs = slaDeadline.getTime() - nowIST.getTime();
-      const timeRemaining = formatTimeRemaining(timeRemainingMs);
+      const timeRemainingAbsoluteMs = Math.abs(timeRemainingMs);
+      
+      // Format time remaining, showing negative if breached
+      const hours = Math.floor(timeRemainingAbsoluteMs / (1000 * 60 * 60));
+      const minutes = Math.floor((timeRemainingAbsoluteMs % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((timeRemainingAbsoluteMs % (1000 * 60)) / 1000);
+      
+      const sign = timeRemainingMs < 0 ? '-' : '';
+      const timeRemaining = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
       const isBreached = timeRemainingMs <= 0;
 
       let status = 'Normal';
@@ -244,20 +467,16 @@ exports.getNetflixTickets = async (req, res) => {
         status = 'Critical';
       }
 
-
       function formatISTDateYMD(date) {
-  const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-
-  const yyyy = istDate.getFullYear();
-  const mm = String(istDate.getMonth() + 1).padStart(2, '0');
-  const dd = String(istDate.getDate()).padStart(2, '0');
-  const hh = String(istDate.getHours()).padStart(2, '0');
-  const mi = String(istDate.getMinutes()).padStart(2, '0');
-  const ss = String(istDate.getSeconds()).padStart(2, '0');
-
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-}
-
+        const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+        const yyyy = istDate.getFullYear();
+        const mm = String(istDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(istDate.getDate()).padStart(2, '0');
+        const hh = String(istDate.getHours()).padStart(2, '0');
+        const mi = String(istDate.getMinutes()).padStart(2, '0');
+        const ss = String(istDate.getSeconds()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+      }
 
       return {
         ...ticket,
@@ -276,9 +495,10 @@ exports.getNetflixTickets = async (req, res) => {
       };
     });
 
-    const breachedSLAs = processedTickets.filter(t => t.slaData.isBreached).length;
+    const breachedSLAs = processedTickets.filter(t => t.slaData.status === 'Breached').length;
     const criticalSLAs = processedTickets.filter(t => t.slaData.status === 'Critical').length;
     const normalSLAs = processedTickets.filter(t => t.slaData.status === 'Normal').length;
+    const notApplicableSLAs = processedTickets.filter(t => t.slaData.status === 'Not Applicable').length;
 
     res.status(200).json({
       success: true,
@@ -295,7 +515,8 @@ exports.getNetflixTickets = async (req, res) => {
         slaMetrics: {
           breached: breachedSLAs,
           critical: criticalSLAs,
-          normal: normalSLAs
+          normal: normalSLAs,
+          notApplicable: notApplicableSLAs
         }
       }
     });
@@ -305,9 +526,6 @@ exports.getNetflixTickets = async (req, res) => {
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
-
-
-
 
 exports.updateTicketByKey = async (req, res) => {
   try {
