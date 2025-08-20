@@ -372,7 +372,7 @@ exports.getNetflixTickets = async (req, res) => {
     if (createdFrom || createdTo) {
       query.created = {};
       if (createdFrom) query.created.$gte = createdFrom;
-      if (createdTo) query.created.$lte = createdTo;
+      if (createdTo) query.created.$lte = createdTo + "23:59:59";
     }
 
     if (updatedFrom || updatedTo) {
