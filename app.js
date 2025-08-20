@@ -27,11 +27,10 @@ app.use('/api', netflixRoutes);
 
 app.use('/api/google', authRoutes);
 
-cron.schedule('0 * * * * ', async () => {
-  console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
-  await migrateData();
-});
-
+// cron.schedule('*/10 * * * * ', async () => {
+//   console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
+//   await migrateData();
+// });
 
 app.get('/', (req, res) => {
   res.send("🎬 Netflix Ticketing Backend Running");

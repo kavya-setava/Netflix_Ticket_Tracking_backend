@@ -420,7 +420,7 @@ exports.getNetflixTickets = async (req, res) => {
     }
 
     const tickets = await NetflixTicket.find(query)
-      .sort({ updated: 1 })
+      .sort({ updated: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .lean();
