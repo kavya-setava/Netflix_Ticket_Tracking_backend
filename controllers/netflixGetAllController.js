@@ -115,7 +115,12 @@ function formatTimeRemaining(ms) {
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
-// Main Express API
+
+
+
+
+
+
 // exports.getNetflixTickets = async (req, res) => {
 //   try {
 //     const { email, cm_region } = req.query;
@@ -168,14 +173,14 @@ function formatTimeRemaining(ms) {
 //     let query = {};
 //     if (role === 1) query.CM_email = email;
 //     if (cm_region) query.cm_region = cm_region;
-//     if (status) query.status = status;
+//     if (status) query.status = status; // Add status to the query
 //     if (startTime) query.startTime = startTime;
 //     if (endTime) query.endTime = endTime;
 
 //     if (createdFrom || createdTo) {
 //       query.created = {};
 //       if (createdFrom) query.created.$gte = createdFrom;
-//       if (createdTo) query.created.$lte = createdTo;
+//       if (createdTo) query.created.$lte = createdTo + "23:59:59";
 //     }
 
 //     if (updatedFrom || updatedTo) {
@@ -212,10 +217,28 @@ function formatTimeRemaining(ms) {
 //       ];
 //     }
 
-//     const [total, assignedCount, closedCount] = await Promise.all([
-//       NetflixTicket.countDocuments(query),
-//       NetflixTicket.countDocuments({ ...query, status: 'Assigned' }),
-//       NetflixTicket.countDocuments({ ...query, status: 'Closed' })
+//     // Get counts for all statuses based on the current query (without status filter)
+//     const statusQuery = { ...query };
+//     delete statusQuery.status; // Remove status filter for counting all statuses
+    
+//     const [
+//       total,
+//       assignedCount,
+//       closedCount,
+//       startCount,
+//       interimCount,
+//       needMoreInfoCount,
+//       sentToVaoCount,
+//       solutionProvidedCount
+//     ] = await Promise.all([
+//       NetflixTicket.countDocuments(statusQuery),
+//       NetflixTicket.countDocuments({ ...statusQuery, status: 'Assigned' }),
+//       NetflixTicket.countDocuments({ ...statusQuery, status: 'Closed' }),
+//       NetflixTicket.countDocuments({ ...statusQuery, status: 'Start' }),
+//       NetflixTicket.countDocuments({ ...statusQuery, status: 'Interim' }),
+//       NetflixTicket.countDocuments({ ...statusQuery, status: 'Need More Information' }),
+//       NetflixTicket.countDocuments({ ...statusQuery, status: 'Sent to VAO' }),
+//       NetflixTicket.countDocuments({ ...statusQuery, status: 'Solution Provided' })
 //     ]);
 
 //     if (role === 0 && total === 0) {
@@ -223,18 +246,44 @@ function formatTimeRemaining(ms) {
 //     }
 
 //     const tickets = await NetflixTicket.find(query)
-//       .sort({ updated: 1 })
+//       .sort({ updated: -1 })
 //       .skip((page - 1) * limit)
 //       .limit(parseInt(limit))
 //       .lean();
 
 //     const processedTickets = tickets.map(ticket => {
+//       // Special case for 'Need More Info' status and other non-SLA statuses
+//       if (ticket.status === 'Need More Information' || ticket.status === 'Closed' || ticket.status === 'Sent to VAO') {
+//         return {
+//           ...ticket,
+//           pauseTime: ticket.pauseTime || '00:00:00',
+//           slaData: {
+//             deadline: 'N/A',
+//             timeRemaining: '00:00:00',
+//             isBreached: false,
+//             status: 'Not Applicable',
+//             debug: {
+//               info: 'SLA not applicable for Need More Info or Closed status'
+//             }
+//           }
+//         };
+//       }
+
 //       const updatedTime = parseISTDate(ticket.updated);
 //       const slaDeadline = new Date(updatedTime.getTime() + (2 * 60 * 60 * 1000));
 //       const nowIST = getCurrentIST();
 
 //       const timeRemainingMs = slaDeadline.getTime() - nowIST.getTime();
-//       const timeRemaining = formatTimeRemaining(timeRemainingMs);
+//       const timeRemainingAbsoluteMs = Math.abs(timeRemainingMs);
+      
+//       // Format time remaining, showing negative if breached
+//       const hours = Math.floor(timeRemainingAbsoluteMs / (1000 * 60 * 60));
+//       const minutes = Math.floor((timeRemainingAbsoluteMs % (1000 * 60 * 60)) / (1000 * 60));
+//       const seconds = Math.floor((timeRemainingAbsoluteMs % (1000 * 60)) / 1000);
+      
+//       const sign = timeRemainingMs < 0 ? '-' : '';
+//       const timeRemaining = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
 //       const isBreached = timeRemainingMs <= 0;
 
 //       let status = 'Normal';
@@ -244,20 +293,16 @@ function formatTimeRemaining(ms) {
 //         status = 'Critical';
 //       }
 
-
 //       function formatISTDateYMD(date) {
-//   const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-
-//   const yyyy = istDate.getFullYear();
-//   const mm = String(istDate.getMonth() + 1).padStart(2, '0');
-//   const dd = String(istDate.getDate()).padStart(2, '0');
-//   const hh = String(istDate.getHours()).padStart(2, '0');
-//   const mi = String(istDate.getMinutes()).padStart(2, '0');
-//   const ss = String(istDate.getSeconds()).padStart(2, '0');
-
-//   return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-// }
-
+//         const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+//         const yyyy = istDate.getFullYear();
+//         const mm = String(istDate.getMonth() + 1).padStart(2, '0');
+//         const dd = String(istDate.getDate()).padStart(2, '0');
+//         const hh = String(istDate.getHours()).padStart(2, '0');
+//         const mi = String(istDate.getMinutes()).padStart(2, '0');
+//         const ss = String(istDate.getSeconds()).padStart(2, '0');
+//         return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+//       }
 
 //       return {
 //         ...ticket,
@@ -276,9 +321,10 @@ function formatTimeRemaining(ms) {
 //       };
 //     });
 
-//     const breachedSLAs = processedTickets.filter(t => t.slaData.isBreached).length;
+//     const breachedSLAs = processedTickets.filter(t => t.slaData.status === 'Breached').length;
 //     const criticalSLAs = processedTickets.filter(t => t.slaData.status === 'Critical').length;
 //     const normalSLAs = processedTickets.filter(t => t.slaData.status === 'Normal').length;
+//     const notApplicableSLAs = processedTickets.filter(t => t.slaData.status === 'Not Applicable').length;
 
 //     res.status(200).json({
 //       success: true,
@@ -292,10 +338,16 @@ function formatTimeRemaining(ms) {
 //         totalTickets: total,
 //         assignedTickets: assignedCount,
 //         closedTickets: closedCount,
+//         startTickets: startCount,
+//         interimTickets: interimCount,
+//         needMoreInfoTickets: needMoreInfoCount,
+//         sentToVaoTickets: sentToVaoCount,
+//         solutionProvidedTickets: solutionProvidedCount,
 //         slaMetrics: {
 //           breached: breachedSLAs,
 //           critical: criticalSLAs,
-//           normal: normalSLAs
+//           normal: normalSLAs,
+//           notApplicable: notApplicableSLAs
 //         }
 //       }
 //     });
@@ -305,11 +357,6 @@ function formatTimeRemaining(ms) {
 //     res.status(500).json({ success: false, error: 'Internal server error' });
 //   }
 // };
-
-
-
-
-
 
 
 
@@ -409,10 +456,28 @@ exports.getNetflixTickets = async (req, res) => {
       ];
     }
 
-    const [total, assignedCount, closedCount] = await Promise.all([
-      NetflixTicket.countDocuments(query),
-      NetflixTicket.countDocuments({ ...query, status: 'Assigned' }),
-      NetflixTicket.countDocuments({ ...query, status: 'Closed' })
+    // Get counts for all statuses based on the current query (without status filter)
+    const statusQuery = { ...query };
+    delete statusQuery.status;
+    
+    const [
+      total,
+      assignedCount,
+      closedCount,
+      startCount,
+      interimCount,
+      needMoreInfoCount,
+      sentToVaoCount,
+      solutionProvidedCount
+    ] = await Promise.all([
+      NetflixTicket.countDocuments(statusQuery),
+      NetflixTicket.countDocuments({ ...statusQuery, status: 'Assigned' }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: 'Closed' }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: 'Start' }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: 'Interim' }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: 'Need More Information' }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: 'Sent to VAO' }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: 'Solution Provided' })
     ]);
 
     if (role === 0 && total === 0) {
@@ -420,85 +485,16 @@ exports.getNetflixTickets = async (req, res) => {
     }
 
     const tickets = await NetflixTicket.find(query)
-      .sort({ updated: 1 })
+      .sort({ updated: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .lean();
 
-    const processedTickets = tickets.map(ticket => {
-      // Special case for 'Need More Info' status
-      if (ticket.status === 'Need More Information' || ticket.status === 'Closed' || ticket.status === 'Sent to VAO') {
-        return {
-          ...ticket,
-          pauseTime: ticket.pauseTime || '00:00:00',
-          slaData: {
-            deadline: 'N/A',
-            timeRemaining: '00:00:00',
-            isBreached: false,
-            status: 'Not Applicable',
-            debug: {
-              info: 'SLA not applicable for Need More Info or Closed status'
-            }
-          }
-        };
-      }
-
-      const updatedTime = parseISTDate(ticket.updated);
-      const slaDeadline = new Date(updatedTime.getTime() + (2 * 60 * 60 * 1000));
-      const nowIST = getCurrentIST();
-
-      const timeRemainingMs = slaDeadline.getTime() - nowIST.getTime();
-      const timeRemainingAbsoluteMs = Math.abs(timeRemainingMs);
-      
-      // Format time remaining, showing negative if breached
-      const hours = Math.floor(timeRemainingAbsoluteMs / (1000 * 60 * 60));
-      const minutes = Math.floor((timeRemainingAbsoluteMs % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((timeRemainingAbsoluteMs % (1000 * 60)) / 1000);
-      
-      const sign = timeRemainingMs < 0 ? '-' : '';
-      const timeRemaining = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-
-      const isBreached = timeRemainingMs <= 0;
-
-      let status = 'Normal';
-      if (isBreached) {
-        status = 'Breached';
-      } else if (timeRemainingMs < 3600000) {
-        status = 'Critical';
-      }
-
-      function formatISTDateYMD(date) {
-        const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-        const yyyy = istDate.getFullYear();
-        const mm = String(istDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(istDate.getDate()).padStart(2, '0');
-        const hh = String(istDate.getHours()).padStart(2, '0');
-        const mi = String(istDate.getMinutes()).padStart(2, '0');
-        const ss = String(istDate.getSeconds()).padStart(2, '0');
-        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-      }
-
-      return {
-        ...ticket,
-        pauseTime: ticket.pauseTime || '00:00:00',
-        slaData: {
-          deadline: formatISTDateYMD(slaDeadline),
-          timeRemaining,
-          isBreached,
-          status,
-          debug: {
-            localUpdated: updatedTime.toString(),
-            localDeadline: slaDeadline.toString(),
-            localNow: nowIST.toString()
-          }
-        }
-      };
-    });
-
-    const breachedSLAs = processedTickets.filter(t => t.slaData.status === 'Breached').length;
-    const criticalSLAs = processedTickets.filter(t => t.slaData.status === 'Critical').length;
-    const normalSLAs = processedTickets.filter(t => t.slaData.status === 'Normal').length;
-    const notApplicableSLAs = processedTickets.filter(t => t.slaData.status === 'Not Applicable').length;
+    // No SLA processing here
+    const processedTickets = tickets.map(ticket => ({
+      ...ticket,
+      pauseTime: ticket.pauseTime || '00:00:00'
+    }));
 
     res.status(200).json({
       success: true,
@@ -512,12 +508,11 @@ exports.getNetflixTickets = async (req, res) => {
         totalTickets: total,
         assignedTickets: assignedCount,
         closedTickets: closedCount,
-        slaMetrics: {
-          breached: breachedSLAs,
-          critical: criticalSLAs,
-          normal: normalSLAs,
-          notApplicable: notApplicableSLAs
-        }
+        startTickets: startCount,
+        interimTickets: interimCount,
+        needMoreInfoTickets: needMoreInfoCount,
+        sentToVaoTickets: sentToVaoCount,
+        solutionProvidedTickets: solutionProvidedCount
       }
     });
 
@@ -526,6 +521,8 @@ exports.getNetflixTickets = async (req, res) => {
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
+
+
 
 exports.updateTicketByKey = async (req, res) => {
   try {
