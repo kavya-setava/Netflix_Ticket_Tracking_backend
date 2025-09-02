@@ -35,6 +35,7 @@ updated: {
     type: String,
     // match: [/.+\@.+\..+/, 'Please fill a valid email address']
   },
+  backupCM_email: { type: String, default: '' },
   cm_region: {
     type: String,
     // enum: ['', 'NA', 'EMEA', 'APAC', 'LATAM', 'UCAN'],

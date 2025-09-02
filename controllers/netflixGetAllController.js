@@ -360,6 +360,8 @@ function formatTimeRemaining(ms) {
 
 
 
+
+
 exports.getNetflixTickets = async (req, res) => {
   try {
     const { email, cm_region } = req.query;
@@ -459,9 +461,11 @@ exports.getNetflixTickets = async (req, res) => {
     // Get counts for all statuses based on the current query (without status filter)
     const statusQuery = { ...query };
     delete statusQuery.status;
+    const total = await NetflixTicket.countDocuments(query);
+
     
     const [
-      total,
+     
       assignedCount,
       closedCount,
       startCount,
@@ -470,7 +474,6 @@ exports.getNetflixTickets = async (req, res) => {
       sentToVaoCount,
       solutionProvidedCount
     ] = await Promise.all([
-      NetflixTicket.countDocuments(statusQuery),
       NetflixTicket.countDocuments({ ...statusQuery, status: 'Assigned' }),
       NetflixTicket.countDocuments({ ...statusQuery, status: 'Closed' }),
       NetflixTicket.countDocuments({ ...statusQuery, status: 'Start' }),
@@ -505,7 +508,8 @@ exports.getNetflixTickets = async (req, res) => {
       data: processedTickets,
       userType: isCM ? 'CM' : 'QM',
       metrics: {
-        totalTickets: total,
+        // totalTickets: total,
+        totalTickets: await NetflixTicket.countDocuments(statusQuery), // all tickets regardless of filter
         assignedTickets: assignedCount,
         closedTickets: closedCount,
         startTickets: startCount,
@@ -621,6 +625,117 @@ exports.updateTicketByKey = async (req, res) => {
 };
 
 
+
+exports.getCMs = async (req, res) => {
+  try {
+    // const { region } = req.query;
+
+    // Build filter
+    const filter = { role: 1 };
+    // if (region) {
+    //   filter.region = region;
+    // }
+
+    // Find all CMs with role=1 (and region if provided)
+    const cms = await UserData.find(
+      filter,
+      { name: 1, emailId: 1, userId: 1, region: 1, _id: 0 } // projecting fields
+    ).lean();
+
+    return res.status(200).json({
+      success: true,
+      count: cms.length,
+      data: cms
+    });
+
+  } catch (error) {
+    console.error("Error fetching CMs:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+
+
+exports.updateBackupCM = async (req, res) => {
+  try {
+    const { ticketKey, userId } = req.body;
+
+    if (!ticketKey || !userId) {
+      return res.status(400).json({ message: "ticketKey and userId are required" });
+    }
+
+    // 1. Find CM details from UserData
+    const cm = await UserData.findOne({ userId }).lean();
+    if (!cm) {
+      return res.status(404).json({ message: "CM not found in UserData" });
+    }
+
+    // 2. Update Netflix ticket in DB
+    const updatedTicket = await NetflixTicket.findOneAndUpdate(
+      { ticketKey },
+      {
+        CM_name: cm.name,
+        backupCM_email: cm.emailId
+      },
+      { new: true }
+    );
+
+    if (!updatedTicket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    // 3. Update Google Sheet
+    const sheetsClient = await auth.getClient();
+    const sheets = google.sheets({ version: 'v4', auth: sheetsClient });
+
+    const spreadsheetId = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
+    const sheetName = 'Sheet1';
+
+    // Read the sheet (Issue key column A)
+    const sheetResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A2:J`, // till J because CM_mail_id is column J
+    });
+
+    const rows = sheetResponse.data.values || [];
+    let rowIndex = -1;
+
+    // Find the row where Issue key = ticketID
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i][0] === ticketKey) {  // Column A = Issue key
+        rowIndex = i + 2; // +2 because A2 is the start
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      return res.status(404).json({ message: "Ticket not found in Google Sheet" });
+    }
+
+    // Update CM_mail_id (column J)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${sheetName}!J${rowIndex}`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[cm.emailId]],
+      },
+    });
+
+    res.json({
+      message: "CM updated successfully (DB + Google Sheet)",
+      ticket: updatedTicket
+    });
+
+  } catch (err) {
+    console.error("Error updating backup CM:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+
 exports.CMTicketsFilterOptions = async (req, res) => {
   try {
     const ticketData = await NetflixTicket.find(
@@ -690,3 +805,4 @@ exports.qmdata = async (req, res) => {
     });
   }
 };
+

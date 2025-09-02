@@ -27,7 +27,7 @@ app.use('/api', netflixRoutes);
 
 app.use('/api/google', authRoutes);
 
-// cron.schedule('0 * * * * ', async () => {
+// cron.schedule('*/3 * * * * ', async () => {
 //   console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
 //   await migrateData();
 // });

@@ -269,8 +269,8 @@ async function migrateData() {
     console.log(` Data storage time: ${dbInsertTime.toFixed(2)} seconds`);
     console.log(` Insertion rate: ${(successCount/dbInsertTime).toFixed(2)} records/second`);
 
-    await mongoose.disconnect();
-    console.log(' Disconnected from MongoDB');
+    // await mongoose.disconnect();
+    // console.log(' Disconnected from MongoDB');
 
     const totalTime = (new Date() - startTime) / 1000;
     console.log(`\n Total operation time: ${totalTime.toFixed(2)} seconds`);
