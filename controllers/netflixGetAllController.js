@@ -716,7 +716,7 @@ exports.updateBackupCM = async (req, res) => {
     // Update CM_mail_id (column J)
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `${sheetName}!J${rowIndex}`,
+      range: `${sheetName}!I${rowIndex}`,
       valueInputOption: 'RAW',
       requestBody: {
         values: [[cm.emailId]],
