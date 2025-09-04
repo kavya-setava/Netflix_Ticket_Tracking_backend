@@ -127,8 +127,169 @@
 
 
 
+// ............................below code working fine  .........................................
 
 
+
+// const mongoose = require('mongoose');
+// const { google } = require('googleapis');
+// const NetflixTicket = require('../models/netflixUpdateSchema');
+// const cron = require('node-cron');
+
+// // Configuration
+// const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
+// const SHEET_NAME = 'Sheet1';
+// const RANGE = 'A1:H';
+// const mongoURI = 'mongodb+srv://mcube:123@cluster0.mvb09va.mongodb.net/netflix_db';
+// const API_KEY = 'AIzaSyAd7mk5rSyABQQyr40r3gWMs0ZMuMWE_Hw';
+
+// // Helper function to properly parse Excel dates
+// function parseExcelDate(dateString) {
+//   if (!dateString) return null;
+  
+//   // Split the date and time parts
+//   const [datePart, timePart] = dateString.split(' ');
+//   const [year, month, day] = datePart.split('-').map(Number);
+//   const [hours, minutes, seconds] = timePart.split(':').map(Number);
+
+//   // Create a new Date object in UTC
+//   return new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+// }
+
+// async function getSheetData() {
+//   try {
+//     const sheets = google.sheets({
+//       version: 'v4',
+//       auth: API_KEY
+//     });
+
+//     const response = await sheets.spreadsheets.values.get({
+//       spreadsheetId: SPREADSHEET_ID,
+//       range: `${SHEET_NAME}!${RANGE}`,
+//     });
+    
+//     const [headers, ...rows] = response.data.values;
+//     return { headers, rows };
+//   } catch (error) {
+//     console.error('Error reading Google Sheet:', error.message);
+//     if (error.response && error.response.status === 403) {
+//       console.error('\nERROR: The sheet is probably not public.');
+//       console.error('Solution: Either make the sheet public or use service account credentials.');
+//     }
+//     process.exit(1);
+//   }
+// }
+
+// async function migrateData() {
+//   const startTime = new Date();
+  
+//   try {
+//     // Connect to MongoDB
+//     console.log('⌛ Connecting to MongoDB...');
+//     await mongoose.connect(mongoURI);
+//     console.log('✅ Connected to MongoDB');
+
+//     // Delete existing data
+//     console.log('⌛ Deleting existing records...');
+//     const deleteResult = await NetflixTicket.deleteMany({});
+//     console.log(`♻️ Deleted ${deleteResult.deletedCount} existing records`);
+
+//     // Get data from Google Sheet
+//     console.log('⌛ Fetching data from Google Sheet...');
+//     const { headers, rows } = await getSheetData();
+    
+//     if (!rows || rows.length === 0) {
+//       throw new Error('❌ No data found in the sheet');
+//     }
+
+//     console.log(`📊 Found ${rows.length} rows in Google Sheet`);
+
+//     // Create column mapping
+//     const columnMap = {
+//       ticketKey: headers.indexOf('Issue key'),
+//       created: headers.indexOf('Created'),
+//       updated: headers.indexOf('Updated'),
+//       AM_name: headers.indexOf('Reporter'),
+//       CM_name: headers.indexOf('Assignee'),
+//       CM_email: headers.indexOf('Assignee_mail_id'),
+//       cm_region: headers.indexOf('Assignee_region'),
+//       status: headers.indexOf('Status')
+//     };
+
+//     // Verify all required columns exist
+//     for (const [field, index] of Object.entries(columnMap)) {
+//       if (index === -1) {
+//         throw new Error(`❌ Required column not found for field: ${field}`);
+//       }
+//     }
+
+//     // Process and insert tickets
+//     let successCount = 0;
+//     let errorCount = 0;
+//     const totalRows = rows.length;
+//     const dbInsertStart = new Date();
+
+//     console.log('⏳ Starting data migration...');
+    
+//     for (let i = 0; i < rows.length; i++) {
+//       const row = rows[i];
+//       try {
+//         const ticketData = {
+//           ticketKey: row[columnMap.ticketKey],
+//           created: row[columnMap.created],  // Store as string from sheet (with time zone)
+//           updated: row[columnMap.updated],  // Store as string from sheet (with time zone)
+//           AM_name: row[columnMap.AM_name],
+//           CM_name: row[columnMap.CM_name],
+//           CM_email: row[columnMap.CM_email],
+//           cm_region: row[columnMap.cm_region],
+//           status: row[columnMap.status],
+//         };
+
+//         await NetflixTicket.create(ticketData);
+//         successCount++;
+        
+//         // Show progress every 10 records or for the last record
+//         if (successCount % 10 === 0 || i === rows.length - 1) {
+//           console.log(`🔄 Processed ${i+1}/${totalRows} records (${successCount} successful, ${errorCount} errors)`);
+//         }
+//       } catch (error) {
+//         errorCount++;
+//         console.error(`❌ Error inserting row ${i+1}:`, error.message);
+//         console.error('Problematic row data:', row);
+//       }
+//     }
+
+//     const dbInsertEnd = new Date();
+//     const dbInsertTime = (dbInsertEnd - dbInsertStart) / 1000;
+
+//     console.log('\n Migration Summary:');
+//     console.log(` Successfully inserted: ${successCount} records`);
+//     console.log(` Failed to insert: ${errorCount} records`);
+//     console.log(` Total rows processed: ${totalRows}`);
+//     console.log(` Data storage time: ${dbInsertTime.toFixed(2)} seconds`);
+//     console.log(` Insertion rate: ${(successCount/dbInsertTime).toFixed(2)} records/second`);
+
+//     // await mongoose.disconnect();
+//     // console.log(' Disconnected from MongoDB');
+
+//     const totalTime = (new Date() - startTime) / 1000;
+//     console.log(`\n Total operation time: ${totalTime.toFixed(2)} seconds`);
+//   } catch (error) {
+//     console.error(' Error during data migration:', error);
+//     process.exit(1);
+//   }
+// }
+
+// // Schedule the cron job after all functions are defined
+// // cron.schedule('* * * * *', async () => {
+// //   console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
+// //   await migrateData();
+// // });
+
+// // Uncomment if you want to run immediately when the program starts
+// // migrateData();
+
+// module.exports = { migrateData };
 
 
 const mongoose = require('mongoose');
@@ -136,26 +297,14 @@ const { google } = require('googleapis');
 const NetflixTicket = require('../models/netflixUpdateSchema');
 const cron = require('node-cron');
 
-// Configuration
+// ================= Configuration =================
 const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
 const SHEET_NAME = 'Sheet1';
 const RANGE = 'A1:H';
 const mongoURI = 'mongodb+srv://mcube:123@cluster0.mvb09va.mongodb.net/netflix_db';
 const API_KEY = 'AIzaSyAd7mk5rSyABQQyr40r3gWMs0ZMuMWE_Hw';
 
-// Helper function to properly parse Excel dates
-function parseExcelDate(dateString) {
-  if (!dateString) return null;
-  
-  // Split the date and time parts
-  const [datePart, timePart] = dateString.split(' ');
-  const [year, month, day] = datePart.split('-').map(Number);
-  const [hours, minutes, seconds] = timePart.split(':').map(Number);
-
-  // Create a new Date object in UTC
-  return new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
-}
-
+// ================= Helper Functions =================
 async function getSheetData() {
   try {
     const sheets = google.sheets({
@@ -167,7 +316,7 @@ async function getSheetData() {
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!${RANGE}`,
     });
-    
+
     const [headers, ...rows] = response.data.values;
     return { headers, rows };
   } catch (error) {
@@ -180,31 +329,27 @@ async function getSheetData() {
   }
 }
 
+// ================= Migration Logic =================
 async function migrateData() {
   const startTime = new Date();
-  
+
   try {
     // Connect to MongoDB
     console.log('⌛ Connecting to MongoDB...');
     await mongoose.connect(mongoURI);
     console.log('✅ Connected to MongoDB');
 
-    // Delete existing data
-    console.log('⌛ Deleting existing records...');
-    const deleteResult = await NetflixTicket.deleteMany({});
-    console.log(`♻️ Deleted ${deleteResult.deletedCount} existing records`);
-
     // Get data from Google Sheet
     console.log('⌛ Fetching data from Google Sheet...');
     const { headers, rows } = await getSheetData();
-    
+
     if (!rows || rows.length === 0) {
       throw new Error('❌ No data found in the sheet');
     }
 
     console.log(`📊 Found ${rows.length} rows in Google Sheet`);
 
-    // Create column mapping
+    // Column mapping
     const columnMap = {
       ticketKey: headers.indexOf('Issue key'),
       created: headers.indexOf('Created'),
@@ -216,77 +361,94 @@ async function migrateData() {
       status: headers.indexOf('Status')
     };
 
-    // Verify all required columns exist
+    // Verify required columns
     for (const [field, index] of Object.entries(columnMap)) {
       if (index === -1) {
         throw new Error(`❌ Required column not found for field: ${field}`);
       }
     }
 
-    // Process and insert tickets
-    let successCount = 0;
-    let errorCount = 0;
-    const totalRows = rows.length;
-    const dbInsertStart = new Date();
+    // Track stats
+    let insertCount = 0;
+    let updateCount = 0;
+    let skipCount = 0;
 
-    console.log('⏳ Starting data migration...');
-    
+    console.log('⏳ Starting migration (insert/update)...');
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      try {
-        const ticketData = {
-          ticketKey: row[columnMap.ticketKey],
-          created: row[columnMap.created],  // Store as string from sheet (with time zone)
-          updated: row[columnMap.updated],  // Store as string from sheet (with time zone)
-          AM_name: row[columnMap.AM_name],
-          CM_name: row[columnMap.CM_name],
-          CM_email: row[columnMap.CM_email],
-          cm_region: row[columnMap.cm_region],
-          status: row[columnMap.status],
-        };
+      const ticketKey = row[columnMap.ticketKey];
 
-        await NetflixTicket.create(ticketData);
-        successCount++;
-        
-        // Show progress every 10 records or for the last record
-        if (successCount % 10 === 0 || i === rows.length - 1) {
-          console.log(`🔄 Processed ${i+1}/${totalRows} records (${successCount} successful, ${errorCount} errors)`);
+      const newData = {
+        ticketKey,
+        created: row[columnMap.created],
+        updated: row[columnMap.updated],
+        AM_name: row[columnMap.AM_name],
+        CM_name: row[columnMap.CM_name],
+        CM_email: row[columnMap.CM_email],
+        cm_region: row[columnMap.cm_region],
+        status: row[columnMap.status],
+      };
+
+      try {
+        const existing = await NetflixTicket.findOne({ ticketKey });
+
+        if (existing) {
+          // Compare fields
+          let hasChanges = false;
+          for (const key of Object.keys(newData)) {
+            if (existing[key] !== newData[key]) {
+              existing[key] = newData[key];
+              hasChanges = true;
+            }
+          }
+
+          if (hasChanges) {
+            await existing.save();
+            updateCount++;
+          } else {
+            skipCount++;
+          }
+        } else {
+          await NetflixTicket.create(newData);
+          insertCount++;
         }
-      } catch (error) {
-        errorCount++;
-        console.error(`❌ Error inserting row ${i+1}:`, error.message);
-        console.error('Problematic row data:', row);
+
+        // Progress log every 10 rows or at end
+        if ((i + 1) % 10 === 0 || i === rows.length - 1) {
+          console.log(
+            `🔄 Processed ${i + 1}/${rows.length} rows (Inserted: ${insertCount}, Updated: ${updateCount}, Skipped: ${skipCount})`
+          );
+        }
+      } catch (err) {
+        console.error(`❌ Error processing row ${i + 1}:`, err.message);
+        console.error('Row data:', row);
       }
     }
 
-    const dbInsertEnd = new Date();
-    const dbInsertTime = (dbInsertEnd - dbInsertStart) / 1000;
-
-    console.log('\n Migration Summary:');
-    console.log(` Successfully inserted: ${successCount} records`);
-    console.log(` Failed to insert: ${errorCount} records`);
-    console.log(` Total rows processed: ${totalRows}`);
-    console.log(` Data storage time: ${dbInsertTime.toFixed(2)} seconds`);
-    console.log(` Insertion rate: ${(successCount/dbInsertTime).toFixed(2)} records/second`);
-
-    // await mongoose.disconnect();
-    // console.log(' Disconnected from MongoDB');
+    // Final summary
+    console.log('\n✅ Migration Summary:');
+    console.log(` ➕ Inserted: ${insertCount}`);
+    console.log(` 🔄 Updated: ${updateCount}`);
+    console.log(` ⏭️ Skipped (no changes): ${skipCount}`);
+    console.log(` 📊 Total processed: ${rows.length}`);
 
     const totalTime = (new Date() - startTime) / 1000;
-    console.log(`\n Total operation time: ${totalTime.toFixed(2)} seconds`);
+    console.log(`\n⏱️ Total time: ${totalTime.toFixed(2)} seconds`);
   } catch (error) {
-    console.error(' Error during data migration:', error);
+    console.error('❌ Error during migration:', error);
     process.exit(1);
   }
 }
 
-// Schedule the cron job after all functions are defined
+// ================= Scheduling =================
+// Run every minute (example)
 // cron.schedule('* * * * *', async () => {
 //   console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
 //   await migrateData();
 // });
 
-// Uncomment if you want to run immediately when the program starts
+// Run immediately when program starts
 // migrateData();
 
 module.exports = { migrateData };

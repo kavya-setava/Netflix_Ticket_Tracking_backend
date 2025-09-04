@@ -8,6 +8,8 @@ const authRoutes = require('./routes/authRoute.js')
 //const route = require('./routes/indexRoute');
 const { migrateData } = require('./scripts/excelDataToDb.js');
 const cron = require('node-cron');
+const taskRoutes = require("./routes/taskType.js");
+
 
 dotenv.config();
 connectDB();
@@ -24,6 +26,8 @@ app.use(cors({
 app.use(express.json());
 // app.use('/api', route);
 app.use('/api', netflixRoutes); 
+app.use("/api/tasks", taskRoutes);
+
 
 app.use('/api/google', authRoutes);
 

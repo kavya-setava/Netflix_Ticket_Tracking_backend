@@ -73,7 +73,31 @@ updated: {
   updateddate: {
     type: Date,
     default: Date.now
+  },
+   startDateTime: {
+    type: String,
+    default: ""   // store empty string when not provided
+  },
+  endDateTime: {
+    type: String,
+    default: ""
+  },
+  deadlineDateTime: {
+    type: String,
+    default: ""
+  },
+  taskId: {
+    type: String,
+     default: ""
   }
+  // taskType: {
+  //   type: String,
+  //   default: ""
+  // },
+  // subTaskType: {
+  //   type: String,
+  //   default: ""
+  // }
 });
 
 // Auto-generate ticketID before saving
