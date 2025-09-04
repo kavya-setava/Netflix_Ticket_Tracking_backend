@@ -83,8 +83,9 @@ exports.updateTicketTask = async (req, res) => {
       { ticketKey },
       {
         $set: {
-         
-          taskId:task.taskId || " "
+          taskType: task.taskType || "",
+          subTaskType: task.subTaskType || ""
+          
         }
       },
       { new: true }

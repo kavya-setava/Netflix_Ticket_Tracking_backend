@@ -86,18 +86,18 @@ updated: {
     type: String,
     default: ""
   },
-  taskId: {
-    type: String,
-     default: ""
-  }
-  // taskType: {
+  // taskId: {
   //   type: String,
-  //   default: ""
-  // },
-  // subTaskType: {
-  //   type: String,
-  //   default: ""
+  //    default: ""
   // }
+  taskType: {
+    type: String,
+    default: ""
+  },
+  subTaskType: {
+    type: String,
+    default: ""
+  }
 });
 
 // Auto-generate ticketID before saving
