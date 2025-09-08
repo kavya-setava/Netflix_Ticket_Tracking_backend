@@ -6,39 +6,31 @@ const CounterSchema = new Schema({
   _id: { type: String, required: true },
   seq: { type: Number, default: 0 }
 });
-// const Counter = mongoose.model('Counter', CounterSchema);
 const Counter = mongoose.models.Counter || mongoose.model('Counter', CounterSchema);
 
 // Main Schema
 const NetflixTicketsSchema = new Schema({
   ticketID: {
     type: String,
-    
   },
   ticketKey: {
     type: String,
   },
-  // created: String,
-  // updated: String,
   created: {
-  type: String,
- 
-},
-updated: {
-  type: String,
- 
-},
+    type: String,
+  },
+  updated: {
+    type: String,
+  },
   CM_name: {
     type: String,
   },
   CM_email: {
     type: String,
-    // match: [/.+\@.+\..+/, 'Please fill a valid email address']
   },
   backupCM_email: { type: String, default: '' },
   cm_region: {
     type: String,
-    // enum: ['', 'NA', 'EMEA', 'APAC', 'LATAM', 'UCAN'],
     default: ''
   },
   AM_name: {
@@ -46,10 +38,9 @@ updated: {
     default: ''
   },
   SLA: {
-    type: String,  // Changed to String (default empty)
+    type: String,
     default: "00:00:00"
   },
- 
   latest_created_date: {
     type: Date,
     default: Date.now
@@ -62,7 +53,7 @@ updated: {
     type: String,
     default: '00:00:00'
   },
-   pauseTime: {
+  pauseTime: {
     type: String,
     default: '00:00:00'
   },
@@ -74,9 +65,9 @@ updated: {
     type: Date,
     default: Date.now
   },
-   startDateTime: {
+  startDateTime: {
     type: String,
-    default: ""   // store empty string when not provided
+    default: ""
   },
   endDateTime: {
     type: String,
@@ -86,10 +77,6 @@ updated: {
     type: String,
     default: ""
   },
-  // taskId: {
-  //   type: String,
-  //    default: ""
-  // }
   taskType: {
     type: String,
     default: ""
@@ -117,7 +104,18 @@ NetflixTicketsSchema.pre('save', async function(next) {
   }
 });
 
+// CORRECTED: Add indexes to NetflixTicketsSchema (not NetflixTicketSchema)
+NetflixTicketsSchema.index({ CM_email: 1 });
+NetflixTicketsSchema.index({ updated: -1 });
+NetflixTicketsSchema.index({ status: 1 });
+NetflixTicketsSchema.index({ cm_region: 1 });
+NetflixTicketsSchema.index({ created: 1 });
+NetflixTicketsSchema.index({ ticketID: 1 });
+NetflixTicketsSchema.index({ ticketKey: 1 });
+NetflixTicketsSchema.index({ status: 1, updated: -1 }); // Compound index
+NetflixTicketsSchema.index({ backupCM_email: 1 });
+NetflixTicketsSchema.index({ CM_email: 1, backupCM_email: 1 }); // Compound index
+NetflixTicketsSchema.index({ backupCM_email: 1, updated: -1 }); // Compound index
 
-// module.exports = mongoose.model('NetflixTicket', NetflixTicketsSchema);
 const NetflixTicket = mongoose.models.NetflixTicket || mongoose.model('NetflixTicket', NetflixTicketsSchema);
 module.exports = NetflixTicket;
