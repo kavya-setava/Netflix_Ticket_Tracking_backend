@@ -564,7 +564,7 @@ function calculateMediaPlanQCSLA(ticket, currentIST) {
   }
 
   const startDate = new Date(ticket.startDateTime);
-  const updated = new Date(ticket.updateddate);
+  const updated = new Date(ticket.updated);
 
   // Calculate difference in days between now and startDate
   const diffDays = Math.floor((currentIST - startDate) / (1000 * 60 * 60 * 24));
