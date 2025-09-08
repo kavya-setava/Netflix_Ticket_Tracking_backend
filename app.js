@@ -31,7 +31,7 @@ app.use("/api/tasks", taskRoutes);
 
 app.use('/api/google', authRoutes);
 
-// cron.schedule('*/3 * * * * ', async () => {
+// cron.schedule('*/5 * * * * ', async () => {
 //   console.log(`\n🕐 Cron Job started at ${new Date().toLocaleString()}`);
 //   await migrateData();
 // });

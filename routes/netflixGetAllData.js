@@ -13,6 +13,8 @@ router.put("/updateTicketByKey/:ticketKey", getNetflixTickets.updateTicketByKey)
 router.get('/dropdown', getNetflixTickets.CMTicketsFilterOptions); // uisng this api not using 
 router.get('/getCMs', getNetflixTickets.getCMs); // uisng this api
 router.put('/update-backup-cm', getNetflixTickets.updateBackupCM);
+// router.get("/getTicketSLA",getNetflixTickets.getTicketSLA);
+
 
 
 

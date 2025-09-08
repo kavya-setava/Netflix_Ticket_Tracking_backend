@@ -1,5 +1,7 @@
 const Task = require("../models/taskSubtaskSchema");
 const NetflixTicket = require("../models/netflixUpdateSchema");
+const UserData = require("../models/UserSchema");
+
 
 
 // Create Task Controller
@@ -103,5 +105,39 @@ exports.updateTicketTask = async (req, res) => {
   } catch (err) {
     console.error("Error updating ticket taskType:", err);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+
+
+
+// Update shift timings for all EMEA users
+exports.updateEmeaShiftTiming = async (req, res) => {
+  try {
+    const { shiftStart, shiftEnd } = req.body;
+
+    if (!shiftStart || !shiftEnd) {
+      return res.status(400).json({ message: "shiftStart and shiftEnd are required" });
+    }
+
+    // Update all users in EMEA region
+    const result = await UserData.updateMany(
+      { region: "LATAM" },
+      { 
+        $set: { 
+          shiftStart,
+          shiftEnd,
+          updatedAt: Date.now()
+        }
+      }
+    );
+
+    res.status(200).json({
+      message: "Shift timings updated for EMEA users",
+      modifiedCount: result.modifiedCount
+    });
+  } catch (error) {
+    console.error("Error updating EMEA shift timings:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };

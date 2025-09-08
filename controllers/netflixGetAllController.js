@@ -89,32 +89,31 @@ function getCurrentIST() {
 
 
 
-/**
- * Parses a date string in "YYYY-MM-DD HH:mm:ss" format as IST.
- * @param {string} dateString The date string to parse.
- * @returns {Date} A Date object representing the time in IST.
- */
-function parseISTDate(dateString) {
-  const istDateString = dateString + " +05:30";
-  return new Date(istDateString);
-}
+// /**
+//  * Parses a date string in "YYYY-MM-DD HH:mm:ss" format as IST.
+//  * @param {string} dateString The date string to parse.
+//  * @returns {Date} A Date object representing the time in IST.
+//  */
+// function parseISTDate(dateString) {
+//   const istDateString = dateString + " +05:30";
+//   return new Date(istDateString);
+// }
 
-/**
- * Formats a duration in milliseconds into "HH:mm:ss".
- * @param {number} ms The duration in milliseconds.
- * @returns {string} The formatted time string.
- */
-function formatTimeRemaining(ms) {
-  if (ms <= 0) return "00:00:00";
+// /**
+//  * Formats a duration in milliseconds into "HH:mm:ss".
+//  * @param {number} ms The duration in milliseconds.
+//  * @returns {string} The formatted time string.
+//  */
+// function formatTimeRemaining(ms) {
+//   if (ms <= 0) return "00:00:00";
 
-  const hours = Math.floor(ms / (1000 * 60 * 60));
-  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+//   const hours = Math.floor(ms / (1000 * 60 * 60));
+//   const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+//   const seconds = Math.floor((ms % (1000 * 60)) / 1000);
 
-  const pad = num => num.toString().padStart(2, '0');
-  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-}
-
+//   const pad = num => num.toString().padStart(2, '0');
+//   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+// }
 
 
 
@@ -173,7 +172,7 @@ function formatTimeRemaining(ms) {
 //     let query = {};
 //     if (role === 1) query.CM_email = email;
 //     if (cm_region) query.cm_region = cm_region;
-//     if (status) query.status = status; // Add status to the query
+//     if (status) query.status = status;
 //     if (startTime) query.startTime = startTime;
 //     if (endTime) query.endTime = endTime;
 
@@ -219,10 +218,12 @@ function formatTimeRemaining(ms) {
 
 //     // Get counts for all statuses based on the current query (without status filter)
 //     const statusQuery = { ...query };
-//     delete statusQuery.status; // Remove status filter for counting all statuses
+//     delete statusQuery.status;
+//     const total = await NetflixTicket.countDocuments(query);
+
     
 //     const [
-//       total,
+     
 //       assignedCount,
 //       closedCount,
 //       startCount,
@@ -231,7 +232,6 @@ function formatTimeRemaining(ms) {
 //       sentToVaoCount,
 //       solutionProvidedCount
 //     ] = await Promise.all([
-//       NetflixTicket.countDocuments(statusQuery),
 //       NetflixTicket.countDocuments({ ...statusQuery, status: 'Assigned' }),
 //       NetflixTicket.countDocuments({ ...statusQuery, status: 'Closed' }),
 //       NetflixTicket.countDocuments({ ...statusQuery, status: 'Start' }),
@@ -251,80 +251,11 @@ function formatTimeRemaining(ms) {
 //       .limit(parseInt(limit))
 //       .lean();
 
-//     const processedTickets = tickets.map(ticket => {
-//       // Special case for 'Need More Info' status and other non-SLA statuses
-//       if (ticket.status === 'Need More Information' || ticket.status === 'Closed' || ticket.status === 'Sent to VAO') {
-//         return {
-//           ...ticket,
-//           pauseTime: ticket.pauseTime || '00:00:00',
-//           slaData: {
-//             deadline: 'N/A',
-//             timeRemaining: '00:00:00',
-//             isBreached: false,
-//             status: 'Not Applicable',
-//             debug: {
-//               info: 'SLA not applicable for Need More Info or Closed status'
-//             }
-//           }
-//         };
-//       }
-
-//       const updatedTime = parseISTDate(ticket.updated);
-//       const slaDeadline = new Date(updatedTime.getTime() + (2 * 60 * 60 * 1000));
-//       const nowIST = getCurrentIST();
-
-//       const timeRemainingMs = slaDeadline.getTime() - nowIST.getTime();
-//       const timeRemainingAbsoluteMs = Math.abs(timeRemainingMs);
-      
-//       // Format time remaining, showing negative if breached
-//       const hours = Math.floor(timeRemainingAbsoluteMs / (1000 * 60 * 60));
-//       const minutes = Math.floor((timeRemainingAbsoluteMs % (1000 * 60 * 60)) / (1000 * 60));
-//       const seconds = Math.floor((timeRemainingAbsoluteMs % (1000 * 60)) / 1000);
-      
-//       const sign = timeRemainingMs < 0 ? '-' : '';
-//       const timeRemaining = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-
-//       const isBreached = timeRemainingMs <= 0;
-
-//       let status = 'Normal';
-//       if (isBreached) {
-//         status = 'Breached';
-//       } else if (timeRemainingMs < 3600000) {
-//         status = 'Critical';
-//       }
-
-//       function formatISTDateYMD(date) {
-//         const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-//         const yyyy = istDate.getFullYear();
-//         const mm = String(istDate.getMonth() + 1).padStart(2, '0');
-//         const dd = String(istDate.getDate()).padStart(2, '0');
-//         const hh = String(istDate.getHours()).padStart(2, '0');
-//         const mi = String(istDate.getMinutes()).padStart(2, '0');
-//         const ss = String(istDate.getSeconds()).padStart(2, '0');
-//         return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-//       }
-
-//       return {
-//         ...ticket,
-//         pauseTime: ticket.pauseTime || '00:00:00',
-//         slaData: {
-//           deadline: formatISTDateYMD(slaDeadline),
-//           timeRemaining,
-//           isBreached,
-//           status,
-//           debug: {
-//             localUpdated: updatedTime.toString(),
-//             localDeadline: slaDeadline.toString(),
-//             localNow: nowIST.toString()
-//           }
-//         }
-//       };
-//     });
-
-//     const breachedSLAs = processedTickets.filter(t => t.slaData.status === 'Breached').length;
-//     const criticalSLAs = processedTickets.filter(t => t.slaData.status === 'Critical').length;
-//     const normalSLAs = processedTickets.filter(t => t.slaData.status === 'Normal').length;
-//     const notApplicableSLAs = processedTickets.filter(t => t.slaData.status === 'Not Applicable').length;
+//     // No SLA processing here
+//     const processedTickets = tickets.map(ticket => ({
+//       ...ticket,
+//       pauseTime: ticket.pauseTime || '00:00:00'
+//     }));
 
 //     res.status(200).json({
 //       success: true,
@@ -335,20 +266,15 @@ function formatTimeRemaining(ms) {
 //       data: processedTickets,
 //       userType: isCM ? 'CM' : 'QM',
 //       metrics: {
-//         totalTickets: total,
+//         // totalTickets: total,
+//         totalTickets: await NetflixTicket.countDocuments(statusQuery), // all tickets regardless of filter
 //         assignedTickets: assignedCount,
 //         closedTickets: closedCount,
 //         startTickets: startCount,
 //         interimTickets: interimCount,
 //         needMoreInfoTickets: needMoreInfoCount,
 //         sentToVaoTickets: sentToVaoCount,
-//         solutionProvidedTickets: solutionProvidedCount,
-//         slaMetrics: {
-//           breached: breachedSLAs,
-//           critical: criticalSLAs,
-//           normal: normalSLAs,
-//           notApplicable: notApplicableSLAs
-//         }
+//         solutionProvidedTickets: solutionProvidedCount
 //       }
 //     });
 
@@ -362,6 +288,265 @@ function formatTimeRemaining(ms) {
 
 
 
+
+
+// ================== SLA Helper Functions ==================
+// function getCurrentIST() {
+//   return new Date(
+//     new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+//   );
+// }
+
+// function formatISTDateYMD(date) {
+//   const istDate = new Date(
+//     date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+//   );
+//   const yyyy = istDate.getFullYear();
+//   const mm = String(istDate.getMonth() + 1).padStart(2, "0");
+//   const dd = String(istDate.getDate()).padStart(2, "0");
+//   const hh = String(istDate.getHours()).padStart(2, "0");
+//   const mi = String(istDate.getMinutes()).padStart(2, "0");
+//   const ss = String(istDate.getSeconds()).padStart(2, "0");
+//   return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+// }
+
+// // SLA Calculation logic
+// function calculateSLA(ticket, user) {
+//   // Case 1: no task/subtask
+//   if (!ticket.taskType && !ticket.subTaskType) {
+//     return {
+//       deadline: "N/A",
+//       timeRemaining: "00:00:00",
+//       isBreached: false,
+//       status: "Not Applicable"
+//     };
+//   }
+
+//   // Case 2: Live Confirmation
+//   if (ticket.taskType === "Live Confirmation") {
+//     if (!user || !user.shiftStart) {
+//       return {
+//         deadline: "N/A",
+//         timeRemaining: "00:00:00",
+//         isBreached: false,
+//         status: "Shift Time Missing"
+//       };
+//     }
+
+//     const today = getCurrentIST();
+//     const [hh, mm] = user.shiftStart.split(":").map(Number);
+//     const shiftStartDateTime = new Date(today);
+//     shiftStartDateTime.setHours(hh, mm, 0, 0);
+
+//     const slaDeadline = new Date(
+//       shiftStartDateTime.getTime() + 2 * 60 * 60 * 1000
+//     );
+//     const nowIST = getCurrentIST();
+
+//     const diffMs = slaDeadline - nowIST;
+//     const absMs = Math.abs(diffMs);
+
+//     const hours = String(Math.floor(absMs / (1000 * 60 * 60))).padStart(
+//       2,
+//       "0"
+//     );
+//     const minutes = String(
+//       Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60))
+//     ).padStart(2, "0");
+//     const seconds = String(Math.floor((absMs % (1000 * 60)) / 1000)).padStart(
+//       2,
+//       "0"
+//     );
+
+//     const sign = diffMs < 0 ? "-" : "";
+//     const timeRemaining = `${sign}${hours}:${minutes}:${seconds}`;
+
+//     let status = "Normal";
+//     if (diffMs <= 0) status = "Breached";
+//     else if (diffMs < 3600000) status = "Critical";
+
+//     return {
+//       deadline: formatISTDateYMD(slaDeadline),
+//       timeRemaining,
+//       isBreached: diffMs <= 0,
+//       status
+//     };
+//   }
+
+//   // Case 3: other task types (future subtask SLAs can go here)
+//   return {
+//     deadline: "N/A",
+//     timeRemaining: "00:00:00",
+//     isBreached: false,
+//     status: "No SLA Rule"
+//   };
+// }
+
+
+// Get IST current datetime
+function getCurrentIST() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+}
+
+// Format IST date to Y-m-d H:M:S
+function formatISTDateYMD(date) {
+  const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const yyyy = istDate.getFullYear();
+  const mm = String(istDate.getMonth() + 1).padStart(2, "0");
+  const dd = String(istDate.getDate()).padStart(2, "0");
+  const hh = String(istDate.getHours()).padStart(2, "0");
+  const mi = String(istDate.getMinutes()).padStart(2, "0");
+  const ss = String(istDate.getSeconds()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+}
+
+// Time remaining calculator (used by all SLA types)
+function calculateTimeRemaining(slaDeadline, status) {
+  const nowIST = getCurrentIST();
+  const diffMs = slaDeadline - nowIST;
+  const absMs = Math.abs(diffMs);
+
+  const hours = String(Math.floor(absMs / (1000 * 60 * 60))).padStart(2, "0");
+  const minutes = String(Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, "0");
+  const seconds = String(Math.floor((absMs % (1000 * 60)) / 1000)).padStart(2, "0");
+
+  const sign = diffMs < 0 ? "-" : "";
+  const timeRemaining = `${sign}${hours}:${minutes}:${seconds}`;
+
+  let slaStatus = "Normal";
+  if (["Closed", "Need More Information", "Sent to VAO"].includes(status)) {
+    slaStatus = "Not Applicable";
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: slaStatus
+    };
+  }
+
+  if (diffMs <= 0) slaStatus = "Breached";
+  else if (diffMs < 3600000) slaStatus = "Critical"; // less than 1h
+
+  return {
+    deadline: formatISTDateYMD(slaDeadline),
+    timeRemaining,
+    isBreached: diffMs <= 0,
+    status: slaStatus
+  };
+}
+
+// SLA for Live Confirmation
+function calculateLiveConfirmationSLA(ticket, user) {
+  if (!user || !user.shiftStart) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "Shift Time Missing"
+    };
+  }
+
+  const today = getCurrentIST();
+  const [hh, mm] = user.shiftStart.split(":").map(Number);
+  const shiftStartDateTime = new Date(today);
+  shiftStartDateTime.setHours(hh, mm, 0, 0);
+
+  const slaDeadline = new Date(shiftStartDateTime.getTime() + 2 * 60 * 60 * 1000);
+
+  return calculateTimeRemaining(slaDeadline, ticket.status);
+}
+
+// SLA for Media Plan QC (startDateTime decides, updateddate applies)
+function calculateMediaPlanQCSLA(ticket) {
+  if (!ticket.startDateTime || !ticket.updateddate) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "Start/Updated Date Missing"
+    };
+  }
+
+  const startDate = new Date(ticket.startDateTime);
+  const updated = new Date(ticket.updateddate);
+  const now = getCurrentIST();
+
+  const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+
+  let slaDeadline;
+  if (diffDays <= 2) {
+    slaDeadline = new Date(updated.getTime() + 2 * 60 * 60 * 1000); // +2 hrs
+  } else {
+    slaDeadline = new Date(updated.getTime() + 8 * 60 * 60 * 1000); // +8 hrs
+  }
+
+  return calculateTimeRemaining(slaDeadline, ticket.status);
+}
+
+// SLA for Reporting → EOC Report
+function calculateReportingEOCSLA(ticket) {
+  if (!ticket.endDateTime) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "End Date Missing"
+    };
+  }
+
+  const endDate = new Date(ticket.endDateTime);
+  const now = getCurrentIST();
+
+  // Check if endDate is today
+  const isToday =
+    endDate.getDate() === now.getDate() &&
+    endDate.getMonth() === now.getMonth() &&
+    endDate.getFullYear() === now.getFullYear();
+
+  if (!isToday) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "Not Applicable"
+    };
+  }
+
+  const slaDeadline = new Date(now.getTime() + 72 * 60 * 60 * 1000); // today + 72 hrs
+  return calculateTimeRemaining(slaDeadline, ticket.status);
+}
+
+// Master SLA calculator
+function calculateSLA(ticket, user) {
+  if (!ticket.taskType && !ticket.subTaskType) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "Not Applicable"
+    };
+  }
+
+  if (ticket.taskType === "Live Confirmation") {
+    return calculateLiveConfirmationSLA(ticket, user);
+  }
+
+  if (ticket.taskType === "Media Plan QC") {
+    return calculateMediaPlanQCSLA(ticket);
+  }
+
+  if (ticket.taskType === "Reporting" && ticket.subTaskType === "EOC Report") {
+    return calculateReportingEOCSLA(ticket);
+  }
+
+  return {
+    deadline: "N/A",
+    timeRemaining: "00:00:00",
+    isBreached: false,
+    status: "No SLA Rule"
+  };
+}
+// ================== Main Controller ==================
 exports.getNetflixTickets = async (req, res) => {
   try {
     const { email, cm_region } = req.query;
@@ -386,21 +571,29 @@ exports.getNetflixTickets = async (req, res) => {
     } = req.query;
 
     if (!email) {
-      return res.status(400).json({ success: false, error: 'Email is required' });
+      return res
+        .status(400)
+        .json({ success: false, error: "Email is required" });
     }
 
     const user = await UserData.findOne({ emailId: email });
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, error: "User not found" });
     }
 
     const role = user.role;
     let isCM = false;
 
     if (role === 1) {
-      const cmTicket = await NetflixTicket.findOne({ CM_email: email }).select('_id');
+      const cmTicket = await NetflixTicket.findOne({
+        CM_email: email
+      }).select("_id");
       if (!cmTicket) {
-        return res.status(404).json({ success: false, error: 'No tickets found for this user' });
+        return res
+          .status(404)
+          .json({ success: false, error: "No tickets found for this user" });
       }
       isCM = true;
     }
@@ -408,7 +601,10 @@ exports.getNetflixTickets = async (req, res) => {
     const ensureArray = (value) => {
       if (!value) return null;
       if (Array.isArray(value)) return value;
-      return String(value).split(',').map((v) => v.trim()).filter(Boolean);
+      return String(value)
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean);
     };
 
     let query = {};
@@ -431,13 +627,13 @@ exports.getNetflixTickets = async (req, res) => {
     }
 
     const multiFilters = [
-      { key: 'ticketID', value: ensureArray(ticketIDList) },
-      { key: 'ticketKey', value: ensureArray(ticketKeyList) },
-      { key: 'CM_name', value: ensureArray(cmNameList) },
-      { key: 'CM_email', value: ensureArray(cmEmailList) },
-      { key: 'AM_name', value: ensureArray(amNameList) },
-      { key: 'cm_region', value: ensureArray(cmRegionList) },
-      { key: 'status', value: ensureArray(statusList) }
+      { key: "ticketID", value: ensureArray(ticketIDList) },
+      { key: "ticketKey", value: ensureArray(ticketKeyList) },
+      { key: "CM_name", value: ensureArray(cmNameList) },
+      { key: "CM_email", value: ensureArray(cmEmailList) },
+      { key: "AM_name", value: ensureArray(amNameList) },
+      { key: "cm_region", value: ensureArray(cmRegionList) },
+      { key: "status", value: ensureArray(statusList) }
     ];
 
     multiFilters.forEach(({ key, value }) => {
@@ -448,24 +644,22 @@ exports.getNetflixTickets = async (req, res) => {
 
     if (searchText) {
       query.$or = [
-        { ticketID: { $regex: searchText, $options: 'i' } },
-        { ticketKey: { $regex: searchText, $options: 'i' } },
-        { CM_name: { $regex: searchText, $options: 'i' } },
-        { CM_email: { $regex: searchText, $options: 'i' } },
-        { AM_name: { $regex: searchText, $options: 'i' } },
-        { cm_region: { $regex: searchText, $options: 'i' } },
-        { status: { $regex: searchText, $options: 'i' } }
+        { ticketID: { $regex: searchText, $options: "i" } },
+        { ticketKey: { $regex: searchText, $options: "i" } },
+        { CM_name: { $regex: searchText, $options: "i" } },
+        { CM_email: { $regex: searchText, $options: "i" } },
+        { AM_name: { $regex: searchText, $options: "i" } },
+        { cm_region: { $regex: searchText, $options: "i" } },
+        { status: { $regex: searchText, $options: "i" } }
       ];
     }
 
-    // Get counts for all statuses based on the current query (without status filter)
     const statusQuery = { ...query };
     delete statusQuery.status;
+
     const total = await NetflixTicket.countDocuments(query);
 
-    
     const [
-     
       assignedCount,
       closedCount,
       startCount,
@@ -474,17 +668,25 @@ exports.getNetflixTickets = async (req, res) => {
       sentToVaoCount,
       solutionProvidedCount
     ] = await Promise.all([
-      NetflixTicket.countDocuments({ ...statusQuery, status: 'Assigned' }),
-      NetflixTicket.countDocuments({ ...statusQuery, status: 'Closed' }),
-      NetflixTicket.countDocuments({ ...statusQuery, status: 'Start' }),
-      NetflixTicket.countDocuments({ ...statusQuery, status: 'Interim' }),
-      NetflixTicket.countDocuments({ ...statusQuery, status: 'Need More Information' }),
-      NetflixTicket.countDocuments({ ...statusQuery, status: 'Sent to VAO' }),
-      NetflixTicket.countDocuments({ ...statusQuery, status: 'Solution Provided' })
+      NetflixTicket.countDocuments({ ...statusQuery, status: "Assigned" }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: "Closed" }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: "Start" }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: "Interim" }),
+      NetflixTicket.countDocuments({
+        ...statusQuery,
+        status: "Need More Information"
+      }),
+      NetflixTicket.countDocuments({ ...statusQuery, status: "Sent to VAO" }),
+      NetflixTicket.countDocuments({
+        ...statusQuery,
+        status: "Solution Provided"
+      })
     ]);
 
     if (role === 0 && total === 0) {
-      return res.status(404).json({ success: false, error: 'No tickets found' });
+      return res
+        .status(404)
+        .json({ success: false, error: "No tickets found" });
     }
 
     const tickets = await NetflixTicket.find(query)
@@ -493,11 +695,20 @@ exports.getNetflixTickets = async (req, res) => {
       .limit(parseInt(limit))
       .lean();
 
-    // No SLA processing here
-    const processedTickets = tickets.map(ticket => ({
-      ...ticket,
-      pauseTime: ticket.pauseTime || '00:00:00'
-    }));
+    // ✅ Now process SLA
+    const processedTickets = await Promise.all(
+      tickets.map(async (ticket) => {
+        const userForSLA = await UserData.findOne({
+          emailId: ticket.CM_email
+        }).lean();
+        const slaData = calculateSLA(ticket, userForSLA);
+        return {
+          ...ticket,
+          pauseTime: ticket.pauseTime || "00:00:00",
+          slaData
+        };
+      })
+    );
 
     res.status(200).json({
       success: true,
@@ -506,10 +717,9 @@ exports.getNetflixTickets = async (req, res) => {
       totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
       data: processedTickets,
-      userType: isCM ? 'CM' : 'QM',
+      userType: isCM ? "CM" : "QM",
       metrics: {
-        // totalTickets: total,
-        totalTickets: await NetflixTicket.countDocuments(statusQuery), // all tickets regardless of filter
+        totalTickets: await NetflixTicket.countDocuments(statusQuery),
         assignedTickets: assignedCount,
         closedTickets: closedCount,
         startTickets: startCount,
@@ -519,13 +729,13 @@ exports.getNetflixTickets = async (req, res) => {
         solutionProvidedTickets: solutionProvidedCount
       }
     });
-
   } catch (error) {
-    console.error('Error fetching tickets:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    console.error("Error fetching tickets:", error);
+    res
+      .status(500)
+      .json({ success: false, error: "Internal server error" });
   }
 };
-
 
 
 exports.updateTicketByKey = async (req, res) => {
@@ -806,3 +1016,132 @@ exports.qmdata = async (req, res) => {
   }
 };
 
+
+
+
+
+
+// function getCurrentIST() {
+//   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+// }
+
+// function formatISTDateYMD(date) {
+//   const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+//   const yyyy = istDate.getFullYear();
+//   const mm = String(istDate.getMonth() + 1).padStart(2, "0");
+//   const dd = String(istDate.getDate()).padStart(2, "0");
+//   const hh = String(istDate.getHours()).padStart(2, "0");
+//   const mi = String(istDate.getMinutes()).padStart(2, "0");
+//   const ss = String(istDate.getSeconds()).padStart(2, "0");
+//   return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+// }
+
+// function calculateSLA(ticket, user) {
+//   // Case 1: No taskType & subTaskType
+//   if (!ticket.taskType && !ticket.subTaskType) {
+//     return {
+//       deadline: "N/A",
+//       timeRemaining: "00:00:00",
+//       isBreached: false,
+//       status: "Not Applicable"
+//     };
+//   }
+
+//   // Case 2: Live Confirmation SLA (Shift Start + 2 hrs)
+//   if (ticket.taskType === "Live Confirmation") {
+//     if (!user || !user.shiftStart) {
+//       return {
+//         deadline: "N/A",
+//         timeRemaining: "00:00:00",
+//         isBreached: false,
+//         status: "Shift Time Missing"
+//       };
+//     }
+
+//     const today = getCurrentIST();
+//     const [hh, mm] = user.shiftStart.split(":").map(Number);
+//     const shiftStartDateTime = new Date(today);
+//     shiftStartDateTime.setHours(hh, mm, 0, 0);
+
+//     const slaDeadline = new Date(shiftStartDateTime.getTime() + 2 * 60 * 60 * 1000);
+//     const nowIST = getCurrentIST();
+
+//     const diffMs = slaDeadline - nowIST;
+//     const absMs = Math.abs(diffMs);
+
+//     const hours = String(Math.floor(absMs / (1000 * 60 * 60))).padStart(2, "0");
+//     const minutes = String(Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, "0");
+//     const seconds = String(Math.floor((absMs % (1000 * 60)) / 1000)).padStart(2, "0");
+
+//     const sign = diffMs < 0 ? "-" : "";
+//     const timeRemaining = `${sign}${hours}:${minutes}:${seconds}`;
+
+//     let status = "Normal";
+//     if (diffMs <= 0) status = "Breached";
+//     else if (diffMs < 3600000) status = "Critical";
+
+//     return {
+//       deadline: formatISTDateYMD(slaDeadline),
+//       timeRemaining,
+//       isBreached: diffMs <= 0,
+//       status
+//     };
+//   }
+
+//   // Case 3: Other taskTypes → for now no SLA
+//   return {
+//     deadline: "N/A",
+//     timeRemaining: "00:00:00",
+//     isBreached: false,
+//     status: "No SLA Rule"
+//   };
+// }
+
+// exports.getTicketSLA = async (req, res) => {
+//   try {
+//     const { emailId } = req.query;  // pass mailId in query param
+
+//     console.log('req.query',req.query);
+    
+
+//     // 1. Find user role from UserData
+//     const currentUser = await UserData.findOne({ emailId }).lean();
+//     if (!currentUser) {
+//       return res.status(404).json({ success: false, error: "User not found" });
+//     }
+//     console.log('currentUser',currentUser);
+    
+
+//     const { role } = currentUser;
+//     console.log('role',role);
+    
+
+//     // 2. Tickets filter based on role
+//     let query = {};
+//     if (role === 1) {
+//       query.CM_email = emailId; // only user’s tickets
+//     }
+
+//     const tickets = await NetflixTicket.find(query).lean();
+
+//     // 3. Process SLA for each ticket
+//     const result = await Promise.all(
+//       tickets.map(async (ticket) => {
+//         const userForSLA = await UserData.findOne({ emailId: ticket.CM_email }).lean();
+//         const slaData = calculateSLA(ticket, userForSLA);
+//         return {
+//           ticketId: ticket.ticketID,
+//           taskType: ticket.taskType,
+//           subTaskType: ticket.subTaskType,
+//           backupCM_email: ticket.backupCM_email,
+//           slaData
+//         };
+//       })
+//     );
+
+//     res.status(200).json({ success: true, count: result.length, tickets: result });
+//   } catch (err) {
+//     console.error("Error in getTicketsSLA:", err);
+//     res.status(500).json({ success: false, error: "Internal Server Error" });
+//   }
+// };
