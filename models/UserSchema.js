@@ -38,16 +38,7 @@ const userDataSchema = new mongoose.Schema({
   role: { 
     type: Number
    
-  },
-  shiftStart: {
-  type: String, // store as "HH:mm"
-  default: "00:00"
-},
-shiftEnd: {
-  type: String, // store as "HH:mm"
-  default: "00:00"
-}
-
+  }
 }, {
   collection: 'userdata'
 });

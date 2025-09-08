@@ -300,7 +300,7 @@ const cron = require('node-cron');
 // ================= Configuration =================
 const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
 const SHEET_NAME = 'Sheet1';
-const RANGE = 'A1:L';
+const RANGE = 'A1:H';
 const mongoURI = 'mongodb+srv://mcube:123@cluster0.mvb09va.mongodb.net/netflix_db';
 const API_KEY = 'AIzaSyAd7mk5rSyABQQyr40r3gWMs0ZMuMWE_Hw';
 
@@ -348,30 +348,18 @@ async function migrateData() {
     }
 
     console.log(`📊 Found ${rows.length} rows in Google Sheet`);
-const normalizedHeaders = headers.map(h => h.trim());
 
-// Debug print headers
-console.log("🔎 Headers from sheet:");
-normalizedHeaders.forEach((h, i) => console.log(`${i}: ${h}`));
-    // Column mapping nor
-const columnMap = {
-  ticketKey: normalizedHeaders.indexOf('Issue key'),
-  created: normalizedHeaders.indexOf('Created'),
-  updated: normalizedHeaders.indexOf('Updated'),
-  AM_name: normalizedHeaders.indexOf('Reporter'),
-  CM_name: normalizedHeaders.indexOf('Assignee'),
-  CM_email: normalizedHeaders.indexOf('Assignee_mail_id'),
-  cm_region: normalizedHeaders.indexOf('Assignee_region'),
-  status: normalizedHeaders.indexOf('Status'),
-
-  // New fields
-  backupCM_email: normalizedHeaders.indexOf('CM_mail_id'),
-  startDateTime: normalizedHeaders.indexOf('Start Date'),
-  endDateTime: normalizedHeaders.indexOf('End Date'),
-  taskType: normalizedHeaders.indexOf('Task Type'),
-};
-
-
+    // Column mapping
+    const columnMap = {
+      ticketKey: headers.indexOf('Issue key'),
+      created: headers.indexOf('Created'),
+      updated: headers.indexOf('Updated'),
+      AM_name: headers.indexOf('Reporter'),
+      CM_name: headers.indexOf('Assignee'),
+      CM_email: headers.indexOf('Assignee_mail_id'),
+      cm_region: headers.indexOf('Assignee_region'),
+      status: headers.indexOf('Status')
+    };
 
     // Verify required columns
     for (const [field, index] of Object.entries(columnMap)) {
@@ -400,12 +388,6 @@ const columnMap = {
         CM_email: row[columnMap.CM_email],
         cm_region: row[columnMap.cm_region],
         status: row[columnMap.status],
-
-        // New fields
-        backupCM_email: row[columnMap.backupCM_email],
-        startDateTime: row[columnMap.startDateTime],
-        endDateTime: row[columnMap.endDateTime],
-        taskType: row[columnMap.taskType],
       };
 
       try {
