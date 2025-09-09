@@ -300,7 +300,7 @@ const cron = require('node-cron');
 // ================= Configuration =================
 const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
 const SHEET_NAME = 'Sheet1';
-const RANGE = 'A1:L';
+const RANGE = 'A1:M';
 const mongoURI = 'mongodb+srv://mcube:123@cluster0.mvb09va.mongodb.net/netflix_db';
 const API_KEY = 'AIzaSyAd7mk5rSyABQQyr40r3gWMs0ZMuMWE_Hw';
 
@@ -369,6 +369,8 @@ const columnMap = {
   startDateTime: normalizedHeaders.indexOf('Start Date'),
   endDateTime: normalizedHeaders.indexOf('End Date'),
   taskType: normalizedHeaders.indexOf('Task Type'),
+  subTaskType: normalizedHeaders.indexOf('Sub Task Type') // 👈 Added
+
 };
 
 
@@ -406,6 +408,8 @@ const columnMap = {
         startDateTime: row[columnMap.startDateTime],
         endDateTime: row[columnMap.endDateTime],
         taskType: row[columnMap.taskType],
+        subTaskType: row[columnMap.subTaskType],  
+
       };
 
       try {

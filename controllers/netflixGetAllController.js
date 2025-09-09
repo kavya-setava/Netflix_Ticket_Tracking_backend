@@ -610,7 +610,9 @@ function calculateReportingEOCSLA(ticket, currentIST) {
   // Set SLA deadline to end of today + 72 hours
   const endOfToday = new Date(currentIST);
   endOfToday.setHours(23, 59, 59, 999);
-  const slaDeadline = new Date(endOfToday.getTime() + 72 * 60 * 60 * 1000);
+  const slaDeadline = new Date(endDate.getTime() + 72 * 60 * 60 * 1000);
+
+  // const slaDeadline = new Date(endOfToday.getTime() + 72 * 60 * 60 * 1000);
   
   return calculateTimeRemaining(slaDeadline, ticket.status, currentIST);
 }
@@ -678,12 +680,9 @@ function buildQuery(params, role, email) {
 
   let query = {};
   
-  // UPDATED: Use backupCM_email instead of CM_email
+  // ✅ CM users → filter strictly by backupCM_email
   if (role === 1) {
-    query.$or = [
-      { backupCM_email: email },
-      { CM_email: email } // Keep both for backward compatibility if needed
-    ];
+    query.backupCM_email = email;
   }
   
   if (cm_region) query.cm_region = cm_region;
@@ -705,7 +704,7 @@ function buildQuery(params, role, email) {
     { key: "ticketID", value: ensureArray(ticketIDList) },
     { key: "ticketKey", value: ensureArray(ticketKeyList) },
     { key: "CM_name", value: ensureArray(cmNameList) },
-    { key: "backupCM_email", value: ensureArray(cmEmailList) }, // UPDATED
+    { key: "backupCM_email", value: ensureArray(cmEmailList) }, // ✅ only backup
     { key: "AM_name", value: ensureArray(amNameList) },
     { key: "cm_region", value: ensureArray(cmRegionList) },
     { key: "status", value: ensureArray(statusList) }
@@ -722,7 +721,7 @@ function buildQuery(params, role, email) {
       { ticketID: { $regex: searchText, $options: "i" } },
       { ticketKey: { $regex: searchText, $options: "i" } },
       { CM_name: { $regex: searchText, $options: "i" } },
-      { backupCM_email: { $regex: searchText, $options: "i" } }, // UPDATED
+      { backupCM_email: { $regex: searchText, $options: "i" } }, // ✅ only backup
       { AM_name: { $regex: searchText, $options: "i" } },
       { cm_region: { $regex: searchText, $options: "i" } },
       { status: { $regex: searchText, $options: "i" } }
@@ -731,6 +730,7 @@ function buildQuery(params, role, email) {
 
   return query;
 }
+
 
 // Helper function to get status counts
 async function getStatusCounts(query) {
@@ -807,12 +807,8 @@ exports.getNetflixTickets = async (req, res) => {
 
     // For CM users, check if they have any tickets (using backupCM_email)
     if (user.role === 1) {
-      const cmTicket = await NetflixTicket.findOne({ 
-        $or: [
-          { backupCM_email: email },
-          { CM_email: email }
-        ]
-      }).select("_id");
+      const cmTicket = await NetflixTicket.findOne({ backupCM_email: email }).select("_id");
+
       
       if (!cmTicket) {
         return res.status(404).json({ success: false, error: "No tickets found for this user" });

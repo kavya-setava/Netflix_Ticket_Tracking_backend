@@ -122,7 +122,7 @@ exports.updateEmeaShiftTiming = async (req, res) => {
 
     // Update all users in EMEA region
     const result = await UserData.updateMany(
-      { region: "LATAM" },
+      { region: "UCAN" },
       { 
         $set: { 
           shiftStart,
