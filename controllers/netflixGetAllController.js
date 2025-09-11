@@ -756,93 +756,6 @@ exports.getCMs = async (req, res) => {
 
 
 
-// exports.updateBackupCM = async (req, res) => {
-//   try {
-//     const { ticketKey, userId } = req.body;
-
-//     if (!ticketKey || !userId) {
-//       return res.status(400).json({ message: "ticketKey and userId are required" });
-//     }
-
-//     // 1. Find CM details from UserData
-//     const cm = await UserData.findOne({ userId }).lean();
-//     if (!cm) {
-//       return res.status(404).json({ message: "CM not found in UserData" });
-//     }
-
-//     // 2. Update Netflix ticket in DB
-//     const updatedTicket = await NetflixTicket.findOneAndUpdate(
-//       { ticketKey },
-//       {
-//         CM_name: cm.name,
-//         backupCM_email: cm.emailId
-//       },
-//       { new: true }
-//     );
-
-//     if (!updatedTicket) {
-//       return res.status(404).json({ message: "Ticket not found" });
-//     }
-
-//     // 3. Update Google Sheet
-//     const sheetsClient = await auth.getClient();
-//     const sheets = google.sheets({ version: 'v4', auth: sheetsClient });
-
-//     const spreadsheetId = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
-//     const sheetName = 'Sheet1';
-
-//     // Read the sheet (Issue key column A)
-//     const sheetResponse = await sheets.spreadsheets.values.get({
-//       spreadsheetId,
-//       range: `${sheetName}!A2:J`, // till J because CM_mail_id is column J
-//     });
-
-//     const rows = sheetResponse.data.values || [];
-//     let rowIndex = -1;
-
-//     // Find the row where Issue key = ticketID
-//     for (let i = 0; i < rows.length; i++) {
-//       if (rows[i][0] === ticketKey) {  // Column A = Issue key
-//         rowIndex = i + 2; // +2 because A2 is the start
-//         break;
-//       }
-//     }
-
-//     if (rowIndex === -1) {
-//       return res.status(404).json({ message: "Ticket not found in Google Sheet" });
-//     }
-
-//     // Update CM_mail_id (column J)
-//     await sheets.spreadsheets.values.update({
-//       spreadsheetId,
-//       range: `${sheetName}!I${rowIndex}`,
-//       valueInputOption: 'RAW',
-//       requestBody: {
-//         values: [[cm.emailId]],
-//       },
-//     });
-
-//     res.json({
-//       message: "CM updated successfully (DB + Google Sheet)",
-//       ticket: updatedTicket
-//     });
-
-//   } catch (err) {
-//     console.error("Error updating backup CM:", err);
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
-
-
-
-
-
-
-// Google Sheets setup
-
-
-
-
 
 const spreadsheetId = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
 const sheetName = 'Sheet1';
@@ -941,6 +854,95 @@ exports.updateBackupCM = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+
+// exports.updateBackupCM = async (req, res) => {
+//   try {
+//     const { ticketKey, userId } = req.body;
+
+//     if (!ticketKey || !userId) {
+//       return res.status(400).json({ message: "ticketKey and userId are required" });
+//     }
+
+//     // 1. Find CM details from UserData
+//     const cm = await UserData.findOne({ userId }).lean();
+//     if (!cm) {
+//       return res.status(404).json({ message: "CM not found in UserData" });
+//     }
+
+//     // 2. Update Netflix ticket in DB
+//     const updatedTicket = await NetflixTicket.findOneAndUpdate(
+//       { ticketKey },
+//       {
+//         CM_name: cm.name,
+//         backupCM_email: cm.emailId
+//       },
+//       { new: true }
+//     );
+
+//     if (!updatedTicket) {
+//       return res.status(404).json({ message: "Ticket not found" });
+//     }
+
+//     // 3. Update Google Sheet
+//     const sheetsClient = await auth.getClient();
+//     const sheets = google.sheets({ version: 'v4', auth: sheetsClient });
+
+//     const spreadsheetId = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
+//     const sheetName = 'Sheet1';
+
+//     // Read the sheet (Issue key column A)
+//     const sheetResponse = await sheets.spreadsheets.values.get({
+//       spreadsheetId,
+//       range: `${sheetName}!A2:J`, // till J because CM_mail_id is column J
+//     });
+
+//     const rows = sheetResponse.data.values || [];
+//     let rowIndex = -1;
+
+//     // Find the row where Issue key = ticketID
+//     for (let i = 0; i < rows.length; i++) {
+//       if (rows[i][0] === ticketKey) {  // Column A = Issue key
+//         rowIndex = i + 2; // +2 because A2 is the start
+//         break;
+//       }
+//     }
+
+//     if (rowIndex === -1) {
+//       return res.status(404).json({ message: "Ticket not found in Google Sheet" });
+//     }
+
+//     // Update CM_mail_id (column J)
+//     await sheets.spreadsheets.values.update({
+//       spreadsheetId,
+//       range: `${sheetName}!I${rowIndex}`,
+//       valueInputOption: 'RAW',
+//       requestBody: {
+//         values: [[cm.emailId]],
+//       },
+//     });
+
+//     res.json({
+//       message: "CM updated successfully (DB + Google Sheet)",
+//       ticket: updatedTicket
+//     });
+
+//   } catch (err) {
+//     console.error("Error updating backup CM:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+
+
+
+
+
+// Google Sheets setup
+
+
+
 
 
 
