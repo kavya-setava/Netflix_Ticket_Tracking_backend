@@ -79,388 +79,6 @@ exports.postticketsdata = async (req, res) => {
 
 
 
-// // Get IST current datetime
-// function getCurrentIST() {
-//   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-// }
-
-// // Format IST date to Y-m-d H:M:S
-// function formatISTDateYMD(date) {
-//   const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-//   const yyyy = istDate.getFullYear();
-//   const mm = String(istDate.getMonth() + 1).padStart(2, "0");
-//   const dd = String(istDate.getDate()).padStart(2, "0");
-//   const hh = String(istDate.getHours()).padStart(2, "0");
-//   const mi = String(istDate.getMinutes()).padStart(2, "0");
-//   const ss = String(istDate.getSeconds()).padStart(2, "0");
-//   return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-// }
-
-// // Time remaining calculator (used by all SLA types)
-// function calculateTimeRemaining(slaDeadline, status) {
-//   const nowIST = getCurrentIST();
-//   const diffMs = slaDeadline - nowIST;
-//   const absMs = Math.abs(diffMs);
-
-//   const hours = String(Math.floor(absMs / (1000 * 60 * 60))).padStart(2, "0");
-//   const minutes = String(Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, "0");
-//   const seconds = String(Math.floor((absMs % (1000 * 60)) / 1000)).padStart(2, "0");
-
-//   const sign = diffMs < 0 ? "-" : "";
-//   const timeRemaining = `${sign}${hours}:${minutes}:${seconds}`;
-
-//   let slaStatus = "Normal";
-//   if (["Closed", "Need More Information", "Sent to VAO"].includes(status)) {
-//     slaStatus = "Not Applicable";
-//     return {
-//       deadline: "N/A",
-//       timeRemaining: "00:00:00",
-//       isBreached: false,
-//       status: slaStatus
-//     };
-//   }
-
-//   if (diffMs <= 0) slaStatus = "Breached";
-//   else if (diffMs < 3600000) slaStatus = "Critical"; // less than 1h
-
-//   return {
-//     deadline: formatISTDateYMD(slaDeadline),
-//     timeRemaining,
-//     isBreached: diffMs <= 0,
-//     status: slaStatus
-//   };
-// }
-
-
-// // SLA for Live Confirmation
-// function calculateLiveConfirmationSLA(ticket, user) {
-//   if (!user || !user.shiftStart) {
-//     return {
-//       deadline: "N/A",
-//       timeRemaining: "00:00:00",
-//       isBreached: false,
-//       status: "Shift Time Missing"
-//     };
-//   }
-
-//   // Check if startDateTime is today
-//   const today = getCurrentIST();
-//   const startDate = new Date(ticket.startDateTime);
-  
-//   const isToday =
-//     startDate.getDate() === today.getDate() &&
-//     startDate.getMonth() === today.getMonth() &&
-//     startDate.getFullYear() === today.getFullYear();
-
-//   if (!isToday) {
-//     return {
-//       deadline: "N/A",
-//       timeRemaining: "00:00:00",
-//       isBreached: false,
-//       status: "Not Applicable"
-//     };
-//   }
-
-//   const [hh, mm] = user.shiftStart.split(":").map(Number);
-  
-//   // Create shift start date for today
-//   const shiftStartToday = new Date(today);
-//   shiftStartToday.setHours(hh, mm, 0, 0);
-  
-//   // Calculate SLA deadline (shift start + 2 hours)
-//   const slaDeadline = new Date(shiftStartToday.getTime() + 2 * 60 * 60 * 1000);
-
-//   return calculateTimeRemaining(slaDeadline, ticket.status);
-// }
-// // SLA for Media Plan QC (startDateTime decides, updateddate applies)
-// function calculateMediaPlanQCSLA(ticket) {
-//   if (!ticket.startDateTime || !ticket.updateddate) {
-//     return {
-//       deadline: "N/A",
-//       timeRemaining: "00:00:00",
-//       isBreached: false,
-//       status: "Start/Updated Date Missing"
-//     };
-//   }
-
-//   const startDate = new Date(ticket.startDateTime);
-//   const updated = new Date(ticket.updateddate);
-//   const now = getCurrentIST();
-
-//   // Calculate difference in days between now and startDate
-//   const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-
-//   let slaDeadline;
-//   if (diffDays <= 2) {
-//     slaDeadline = new Date(updated.getTime() + 2 * 60 * 60 * 1000); // +2 hrs
-//   } else {
-//     slaDeadline = new Date(updated.getTime() + 8 * 60 * 60 * 1000); // +8 hrs
-//   }
-
-//   return calculateTimeRemaining(slaDeadline, ticket.status);
-// }
-
-// // SLA for Reporting → EOC Report
-// function calculateReportingEOCSLA(ticket) {
-//   if (!ticket.endDateTime) {
-//     return {
-//       deadline: "N/A",
-//       timeRemaining: "00:00:00",
-//       isBreached: false,
-//       status: "End Date Missing"
-//     };
-//   }
-
-//   const endDate = new Date(ticket.endDateTime);
-//   const now = getCurrentIST();
-
-//   // Check if endDate is today
-//   const isToday =
-//     endDate.getDate() === now.getDate() &&
-//     endDate.getMonth() === now.getMonth() &&
-//     endDate.getFullYear() === now.getFullYear();
-
-//   if (!isToday) {
-//     return {
-//       deadline: "N/A",
-//       timeRemaining: "00:00:00",
-//       isBreached: false,
-//       status: "Not Applicable"
-//     };
-//   }
-
-//   // Set SLA deadline to end of today + 72 hours
-//   const endOfToday = new Date(now);
-//   endOfToday.setHours(23, 59, 59, 999);
-//   const slaDeadline = new Date(endOfToday.getTime() + 72 * 60 * 60 * 1000);
-  
-//   return calculateTimeRemaining(slaDeadline, ticket.status);
-// }
-
-// // Master SLA calculator
-// function calculateSLA(ticket, user) {
-//   if (!ticket.taskType && !ticket.subTaskType) {
-//     return {
-//       deadline: "N/A",
-//       timeRemaining: "00:00:00",
-//       isBreached: false,
-//       status: "Not Applicable"
-//     };
-//   }
-
-//   if (ticket.taskType === "Live Confirmation") {
-//     return calculateLiveConfirmationSLA(ticket, user);
-//   }
-
-//   if (ticket.taskType === "Media Plan QC") {
-//     return calculateMediaPlanQCSLA(ticket);
-//   }
-
-//   if (ticket.taskType === "Reporting" && ticket.subTaskType === "EOC Report") {
-//     return calculateReportingEOCSLA(ticket);
-//   }
-
-//   return {
-//     deadline: "N/A",
-//     timeRemaining: "00:00:00",
-//     isBreached: false,
-//     status: "No SLA Rule"
-//   };
-// }
-
-// // ================== Main Controller ==================
-// exports.getNetflixTickets = async (req, res) => {
-//   try {
-//     const { email, cm_region } = req.query;
-//     const {
-//       status,
-//       startTime,
-//       endTime,
-//       createdFrom,
-//       createdTo,
-//       updatedFrom,
-//       updatedTo,
-//       searchText,
-//       page = 1,
-//       limit = 25,
-//       ticketIDList,
-//       ticketKeyList,
-//       cmNameList,
-//       cmEmailList,
-//       amNameList,
-//       cmRegionList,
-//       statusList
-//     } = req.query;
-
-//     if (!email) {
-//       return res
-//         .status(400)
-//         .json({ success: false, error: "Email is required" });
-//     }
-
-//     const user = await UserData.findOne({ emailId: email });
-//     if (!user) {
-//       return res
-//         .status(404)
-//         .json({ success: false, error: "User not found" });
-//     }
-
-//     const role = user.role;
-//     let isCM = false;
-
-//     if (role === 1) {
-//       const cmTicket = await NetflixTicket.findOne({
-//         CM_email: email
-//       }).select("_id");
-//       if (!cmTicket) {
-//         return res
-//           .status(404)
-//           .json({ success: false, error: "No tickets found for this user" });
-//       }
-//       isCM = true;
-//     }
-
-//     const ensureArray = (value) => {
-//       if (!value) return null;
-//       if (Array.isArray(value)) return value;
-//       return String(value)
-//         .split(",")
-//         .map((v) => v.trim())
-//         .filter(Boolean);
-//     };
-
-//     let query = {};
-//     if (role === 1) query.CM_email = email;
-//     if (cm_region) query.cm_region = cm_region;
-//     if (status) query.status = status;
-//     if (startTime) query.startTime = startTime;
-//     if (endTime) query.endTime = endTime;
-
-//     if (createdFrom || createdTo) {
-//       query.created = {};
-//       if (createdFrom) query.created.$gte = createdFrom;
-//       if (createdTo) query.created.$lte = createdTo + "23:59:59";
-//     }
-
-//     if (updatedFrom || updatedTo) {
-//       query.updated = {};
-//       if (updatedFrom) query.updated.$gte = updatedFrom;
-//       if (updatedTo) query.updated.$lte = updatedTo;
-//     }
-
-//     const multiFilters = [
-//       { key: "ticketID", value: ensureArray(ticketIDList) },
-//       { key: "ticketKey", value: ensureArray(ticketKeyList) },
-//       { key: "CM_name", value: ensureArray(cmNameList) },
-//       { key: "CM_email", value: ensureArray(cmEmailList) },
-//       { key: "AM_name", value: ensureArray(amNameList) },
-//       { key: "cm_region", value: ensureArray(cmRegionList) },
-//       { key: "status", value: ensureArray(statusList) }
-//     ];
-
-//     multiFilters.forEach(({ key, value }) => {
-//       if (value && value.length > 0) {
-//         query[key] = { $in: value };
-//       }
-//     });
-
-//     if (searchText) {
-//       query.$or = [
-//         { ticketID: { $regex: searchText, $options: "i" } },
-//         { ticketKey: { $regex: searchText, $options: "i" } },
-//         { CM_name: { $regex: searchText, $options: "i" } },
-//         { CM_email: { $regex: searchText, $options: "i" } },
-//         { AM_name: { $regex: searchText, $options: "i" } },
-//         { cm_region: { $regex: searchText, $options: "i" } },
-//         { status: { $regex: searchText, $options: "i" } }
-//       ];
-//     }
-
-//     const statusQuery = { ...query };
-//     delete statusQuery.status;
-
-//     const total = await NetflixTicket.countDocuments(query);
-
-//     const [
-//       assignedCount,
-//       closedCount,
-//       startCount,
-//       interimCount,
-//       needMoreInfoCount,
-//       sentToVaoCount,
-//       solutionProvidedCount
-//     ] = await Promise.all([
-//       NetflixTicket.countDocuments({ ...statusQuery, status: "Assigned" }),
-//       NetflixTicket.countDocuments({ ...statusQuery, status: "Closed" }),
-//       NetflixTicket.countDocuments({ ...statusQuery, status: "Start" }),
-//       NetflixTicket.countDocuments({ ...statusQuery, status: "Interim" }),
-//       NetflixTicket.countDocuments({
-//         ...statusQuery,
-//         status: "Need More Information"
-//       }),
-//       NetflixTicket.countDocuments({ ...statusQuery, status: "Sent to VAO" }),
-//       NetflixTicket.countDocuments({
-//         ...statusQuery,
-//         status: "Solution Provided"
-//       })
-//     ]);
-
-//     if (role === 0 && total === 0) {
-//       return res
-//         .status(404)
-//         .json({ success: false, error: "No tickets found" });
-//     }
-
-//     const tickets = await NetflixTicket.find(query)
-//       .sort({ updated: -1 })
-//       .skip((page - 1) * limit)
-//       .limit(parseInt(limit))
-//       .lean();
-
-//     // ✅ Now process SLA
-//     const processedTickets = await Promise.all(
-//       tickets.map(async (ticket) => {
-//         const userForSLA = await UserData.findOne({
-//           emailId: ticket.CM_email
-//         }).lean();
-//         const slaData = calculateSLA(ticket, userForSLA);
-//         return {
-//           ...ticket,
-//           pauseTime: ticket.pauseTime || "00:00:00",
-//           slaData
-//         };
-//       })
-//     );
-
-//     res.status(200).json({
-//       success: true,
-//       count: processedTickets.length,
-//       total,
-//       totalPages: Math.ceil(total / limit),
-//       currentPage: parseInt(page),
-//       data: processedTickets,
-//       userType: isCM ? "CM" : "QM",
-//       metrics: {
-//         totalTickets: await NetflixTicket.countDocuments(statusQuery),
-//         assignedTickets: assignedCount,
-//         closedTickets: closedCount,
-//         startTickets: startCount,
-//         interimTickets: interimCount,
-//         needMoreInfoTickets: needMoreInfoCount,
-//         sentToVaoTickets: sentToVaoCount,
-//         solutionProvidedTickets: solutionProvidedCount
-//       }
-//     });
-//   } catch (error) {
-//     console.error("Error fetching tickets:", error);
-//     res
-//       .status(500)
-//       .json({ success: false, error: "Internal server error" });
-//   }
-// };
-
-
-
 // Get IST current datetime
 function getCurrentIST() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
@@ -513,6 +131,45 @@ function calculateTimeRemaining(slaDeadline, status, currentIST) {
 }
 
 // SLA for Live Confirmation
+// function calculateLiveConfirmationSLA(ticket, user, currentIST) {
+//   if (!user || !user.shiftStart) {
+//     return {
+//       deadline: "N/A",
+//       timeRemaining: "00:00:00",
+//       isBreached: false,
+//       status: "Shift Time Missing"
+//     };
+//   }
+
+//   // Check if startDateTime is today
+//   const startDate = new Date(ticket.startDateTime);
+  
+//   // const isToday =
+//   //   startDate.getDate() === currentIST.getDate() &&
+//   //   startDate.getMonth() === currentIST.getMonth() &&
+//   //   startDate.getFullYear() === currentIST.getFullYear();
+
+//   // if (!isToday) {
+//   //   return {
+//   //     deadline: "N/A",
+//   //     timeRemaining: "00:00:00",
+//   //     isBreached: false,
+//   //     status: "Not Applicable"
+//   //   };
+//   // }
+
+//   const [hh, mm] = user.shiftStart.split(":").map(Number);
+  
+//   // Create shift start date for today
+//   const shiftStartToday = new Date(currentIST);
+//   shiftStartToday.setHours(hh, mm, 0, 0);
+  
+//   // Calculate SLA deadline (shift start + 2 hours)
+//   const slaDeadline = new Date(shiftStartToday.getTime() + 2 * 60 * 60 * 1000);
+
+//   return calculateTimeRemaining(slaDeadline, ticket.status, currentIST);
+// }
+
 function calculateLiveConfirmationSLA(ticket, user, currentIST) {
   if (!user || !user.shiftStart) {
     return {
@@ -523,34 +180,32 @@ function calculateLiveConfirmationSLA(ticket, user, currentIST) {
     };
   }
 
-  // Check if startDateTime is today
-  const startDate = new Date(ticket.startDateTime);
-  
-  const isToday =
-    startDate.getDate() === currentIST.getDate() &&
-    startDate.getMonth() === currentIST.getMonth() &&
-    startDate.getFullYear() === currentIST.getFullYear();
-
-  if (!isToday) {
+  if (!ticket.startDateTime) {
     return {
       deadline: "N/A",
       timeRemaining: "00:00:00",
       isBreached: false,
-      status: "Not Applicable"
+      status: "Start Date Missing"
     };
   }
 
+  // Parse startDateTime (from ticket, not today's date)
+  const startDate = new Date(ticket.startDateTime);
+
+  // Extract shift start hours and minutes
   const [hh, mm] = user.shiftStart.split(":").map(Number);
-  
-  // Create shift start date for today
-  const shiftStartToday = new Date(currentIST);
-  shiftStartToday.setHours(hh, mm, 0, 0);
-  
-  // Calculate SLA deadline (shift start + 2 hours)
-  const slaDeadline = new Date(shiftStartToday.getTime() + 2 * 60 * 60 * 1000);
+
+  // Create shift start datetime on the *same day as startDate*
+  const shiftStartOnStartDate = new Date(startDate);
+  shiftStartOnStartDate.setHours(hh, mm, 0, 0);
+
+  // SLA deadline = shift start + 2 hours
+  const slaDeadline = new Date(shiftStartOnStartDate.getTime() + 2 * 60 * 60 * 1000);
 
   return calculateTimeRemaining(slaDeadline, ticket.status, currentIST);
 }
+
+
 
 // SLA for Media Plan QC (startDateTime decides, updateddate applies)
 function calculateMediaPlanQCSLA(ticket, currentIST) {
@@ -593,19 +248,19 @@ function calculateReportingEOCSLA(ticket, currentIST) {
   const endDate = new Date(ticket.endDateTime);
 
   // Check if endDate is today
-  const isToday =
-    endDate.getDate() === currentIST.getDate() &&
-    endDate.getMonth() === currentIST.getMonth() &&
-    endDate.getFullYear() === currentIST.getFullYear();
+  // const isToday =
+  //   endDate.getDate() === currentIST.getDate() &&
+  //   endDate.getMonth() === currentIST.getMonth() &&
+  //   endDate.getFullYear() === currentIST.getFullYear();
 
-  if (!isToday) {
-    return {
-      deadline: "N/A",
-      timeRemaining: "00:00:00",
-      isBreached: false,
-      status: "Not Applicable"
-    };
-  }
+  // if (!isToday) {
+  //   return {
+  //     deadline: "N/A",
+  //     timeRemaining: "00:00:00",
+  //     isBreached: false,
+  //     status: "Not Applicable"
+  //   };
+  // }
 
   // Set SLA deadline to end of today + 72 hours
   const endOfToday = new Date(currentIST);
