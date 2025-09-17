@@ -610,119 +610,116 @@ exports.updateTicketByKey = async (req, res) => {
 };
 
 
+exports.updateTicketByKey_DB = async (req, res) => {
+  try {
+    const { ticketKey } = req.params;
+    const { status, startTime, endTime, SLA } = req.body;
 
-// Build the mapping once on startup
+    console.log("🔄 Updating ticket in DB:", ticketKey);
+
+    const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() });
+
+    if (!existingTicket) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+
+    const updateData = {
+      status: status ?? existingTicket.status,
+      startTime: startTime ?? existingTicket.startTime,
+      endTime: endTime ?? existingTicket.endTime,
+      SLA: SLA ?? existingTicket.SLA,
+      updateddate: new Date()
+    };
+
+    const updatedTicket = await NetflixTicket.findOneAndUpdate(
+      { ticketKey: ticketKey.trim() },
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Ticket updated successfully in DB',
+      data: updatedTicket
+    });
+
+  } catch (error) {
+    console.error('⛔ DB update error:', error);
+
+    if (error.name === 'ValidationError') {
+      const details = {};
+      for (let key in error.errors) {
+        details[key] = error.errors[key].message;
+      }
+      return res.status(400).json({ success: false, error: 'Validation failed', details });
+    }
+
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
 
 
 
-// async function buildTicketRowMap() {
-//   try {
-//     const sheetsClient = await auth.getClient();
-//     const sheets = google.sheets({ version: 'v4', auth: sheetsClient });
+exports.updateTicketByKey_Sheet = async (req, res) => {
+  try {
+    const { ticketKey } = req.params;
+    const { status } = req.body;
 
-//     const sheetResponse = await sheets.spreadsheets.values.get({
-//       spreadsheetId,
-//       range: `${sheetName}!A2:A`, // only ticketKey column
-//     });
+    if (!ticketKey || !status) {
+      return res.status(400).json({ success: false, error: 'ticketKey and status are required' });
+    }
 
-//     const rows = sheetResponse.data.values || [];
-//     rows.forEach((row, i) => {
-//       ticketRowMap.set(row[0]?.trim(), i + 2); // +2 because A2 is row 2
-//     });
+    console.log("📄 Updating Google Sheet for:", ticketKey);
 
-//     console.log(`✅ ticketRowMap built with ${ticketRowMap.size} entries`);
-//   } catch (err) {
-//     console.error("❌ Failed to build ticketRowMap:", err.message);
-//   }
-// }
+    const sheetsClient = await auth.getClient();
+    const sheets = google.sheets({ version: 'v4', auth: sheetsClient });
 
-// // Run once at server start
-// buildTicketRowMap();
+    const spreadsheetId = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
+    const sheetName = 'Sheet1';
 
-// exports.updateTicketByKey = async (req, res) => {
-//   try {
-//     const { ticketKey } = req.params;
-//     const { status, startTime, endTime, SLA } = req.body;
+    // Read ticket rows
+    const sheetResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A2:H`,
+    });
 
-//     console.log("🔄 Updating ticket:", ticketKey);
+    const rows = sheetResponse.data.values || [];
+    const rowIndex = rows.findIndex(row => row[0]?.trim() === ticketKey.trim());
 
-//     const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() });
+    if (rowIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Ticket not found in Google Sheet' });
+    }
 
-//     if (!existingTicket) {
-//       return res.status(404).json({ success: false, error: 'Ticket not found' });
-//     }
+    const sheetRange = `${sheetName}!H${rowIndex + 2}`; // +2 because A2 starts after header
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: sheetRange,
+      valueInputOption: 'RAW',
+      resource: {
+        values: [[status]],
+      },
+    });
 
-//     if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined) {
-//       return res.status(400).json({ success: false, error: 'No fields to update' });
-//     }
+    console.log(`✅ Sheet updated for ${ticketKey} in range ${sheetRange}`);
 
-//     const updateData = {
-//       status: status ?? existingTicket.status,
-//       startTime: startTime ?? existingTicket.startTime,
-//       endTime: endTime ?? existingTicket.endTime,
-//       SLA: SLA ?? existingTicket.SLA,
-//       updateddate: new Date()
-//     };
+    res.status(200).json({
+      success: true,
+      message: 'Ticket status updated in Google Sheet',
+      ticketKey,
+      status
+    });
 
-//     // Update DB
-//     const updatedTicket = await NetflixTicket.findOneAndUpdate(
-//       { ticketKey: ticketKey.trim() },
-//       { $set: updateData },
-//       { new: true, runValidators: true }
-//     );
+  } catch (error) {
+    console.error('❌ Google Sheet update error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
 
-//     // Respond immediately (fast)
-//     res.status(200).json({
-//       success: true,
-//       message: 'Ticket updated in DB (Google Sheet update in background)',
-//       data: updatedTicket
-//     });
 
-//     // Update Google Sheet asynchronously if status changed
-//     if (status !== undefined && status !== existingTicket.status) {
-//       (async () => {
-//         try {
-//           const rowIndex = ticketRowMap.get(ticketKey.trim());
-
-//           if (!rowIndex) {
-//             console.warn(`⚠️ Ticket ${ticketKey} not found in Google Sheet mapping`);
-//             return;
-//           }
-
-//           const sheetsClient = await auth.getClient();
-//           const sheets = google.sheets({ version: 'v4', auth: sheetsClient });
-
-//           const sheetRange = `${sheetName}!H${rowIndex}`; // Column H = status
-//           await sheets.spreadsheets.values.update({
-//             spreadsheetId,
-//             range: sheetRange,
-//             valueInputOption: 'RAW',
-//             requestBody: {
-//               values: [[status]],
-//             },
-//           });
-
-//           console.log(`✅ Google Sheet updated for ${ticketKey} → status: ${status}`);
-//         } catch (sheetError) {
-//           console.error("❌ Google Sheet update error:", sheetError.message);
-//         }
-//       })();
-//     }
-
-//   } catch (error) {
-//     console.error('⛔ Internal error:', error);
-
-//     if (error.name === 'ValidationError') {
-//       const details = {};
-//       for (let key in error.errors) {
-//         details[key] = error.errors[key].message;
-//       }
-//       return res.status(400).json({ success: false, error: 'Validation failed', details });
-//     }
-
-//     res.status(500).json({ success: false, error: 'Internal server error' });
-//   }
-// };
 
 
 exports.getCMs = async (req, res) => {
@@ -754,108 +751,6 @@ exports.getCMs = async (req, res) => {
 };
 
 
-
-
-
-// const spreadsheetId = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
-// const sheetName = 'Sheet1';
-
-// // In-memory mapping (ticketKey → rowIndex)
-// const ticketRowMap = new Map();
-
-// // Build ticketRowMap on startup (only once)
-// async function buildTicketRowMap() {
-//   try {
-//     const sheetsClient = await auth.getClient();
-//     const sheets = google.sheets({ version: 'v4', auth: sheetsClient });
-
-//     const sheetResponse = await sheets.spreadsheets.values.get({
-//       spreadsheetId,
-//       range: `${sheetName}!A2:A`, // Only Issue Key column (A)
-//     });
-
-//     const rows = sheetResponse.data.values || [];
-//     rows.forEach((row, i) => {
-//       ticketRowMap.set(row[0], i + 2); // rowIndex starts from 2
-//     });
-
-//     console.log(`✅ TicketRowMap built with ${ticketRowMap.size} entries`);
-//   } catch (err) {
-//     console.error("❌ Failed to build ticketRowMap:", err);
-//   }
-// }
-
-// // Call it once when app starts
-// buildTicketRowMap();
-
-// exports.updateBackupCM = async (req, res) => {
-//   try {
-//     const { ticketKey, userId } = req.body;
-
-//     if (!ticketKey || !userId) {
-//       return res.status(400).json({ message: "ticketKey and userId are required" });
-//     }
-
-//     // 1. Find CM details from UserData
-//     const cm = await UserData.findOne({ userId }).lean();
-//     if (!cm) {
-//       return res.status(404).json({ message: "CM not found in UserData" });
-//     }
-
-//     // 2. Update Netflix ticket in DB
-//     const updatedTicket = await NetflixTicket.findOneAndUpdate(
-//       { ticketKey },
-//       {
-//         CM_name: cm.name,
-//         backupCM_email: cm.emailId
-//       },
-//       { new: true }
-//     );
-
-//     if (!updatedTicket) {
-//       return res.status(404).json({ message: "Ticket not found" });
-//     }
-
-//     // 3. Respond immediately (fast API)
-//     res.json({
-//       message: "CM updated in DB, Google Sheet update in progress",
-//       ticket: updatedTicket
-//     });
-
-//     // 4. Update Google Sheet asynchronously
-//     (async () => {
-//       try {
-//         const rowIndex = ticketRowMap.get(ticketKey);
-//         if (!rowIndex) {
-//           console.warn(`⚠️ Ticket ${ticketKey} not found in Google Sheet mapping`);
-//           return;
-//         }
-
-//         const sheetsClient = await auth.getClient();
-//         const sheets = google.sheets({ version: 'v4', auth: sheetsClient });
-
-//         await sheets.spreadsheets.values.update({
-//           spreadsheetId,
-//           range: `${sheetName}!I${rowIndex}`, // Column I (backupCM_email)
-//           valueInputOption: 'RAW',
-//           requestBody: {
-//             values: [[cm.emailId]],
-//           },
-//         });
-
-//         console.log(`✅ Google Sheet updated for ticket ${ticketKey}`);
-//       } catch (err) {
-//         console.error("❌ Error updating Google Sheet:", err);
-//       }
-//     })();
-
-//   } catch (err) {
-//     console.error("Error updating backup CM:", err);
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
-
-// .................
 
 exports.updateBackupCM = async (req, res) => {
   try {
@@ -934,12 +829,110 @@ exports.updateBackupCM = async (req, res) => {
   }
 };
 
+exports.updateBackupCM_DB = async (req, res) => {
+  try {
+    const { ticketKey, userId } = req.body;
+
+    if (!ticketKey || !userId) {
+      return res.status(400).json({ message: "ticketKey and userId are required" });
+    }
+
+    // Find CM details from UserData
+    const cm = await UserData.findOne({ userId }).lean();
+    if (!cm) {
+      return res.status(404).json({ message: "CM not found in UserData" });
+    }
+
+    // Update Netflix ticket in DB
+    const updatedTicket = await NetflixTicket.findOneAndUpdate(
+      { ticketKey },
+      {
+        CM_name: cm.name,
+        backupCM_email: cm.emailId
+      },
+      { new: true }
+    );
+
+    if (!updatedTicket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    res.json({
+      message: "CM updated successfully in Database",
+      ticket: updatedTicket
+    });
+
+  } catch (err) {
+    console.error("Error updating backup CM in DB:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 
 
+exports.updateBackupCM_Sheet = async (req, res) => {
+  try {
+    const { ticketKey, userId } = req.body;
 
+    if (!ticketKey || !userId) {
+      return res.status(400).json({ message: "ticketKey and userId are required" });
+    }
 
-// Google Sheets setup
+    // Find CM details from UserData
+    const cm = await UserData.findOne({ userId }).lean();
+    if (!cm) {
+      return res.status(404).json({ message: "CM not found in UserData" });
+    }
+
+    // Google Sheets Client
+    const sheetsClient = await auth.getClient();
+    const sheets = google.sheets({ version: 'v4', auth: sheetsClient });
+
+    const spreadsheetId = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
+    const sheetName = 'Sheet1';
+
+    // Read sheet (Issue key column A)
+    const sheetResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A2:J`,
+    });
+
+    const rows = sheetResponse.data.values || [];
+    let rowIndex = -1;
+
+    // Find the row where Issue key = ticketKey
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i][0] === ticketKey) {
+        rowIndex = i + 2; // because A2 is start
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      return res.status(404).json({ message: "Ticket not found in Google Sheet" });
+    }
+
+    // Update CM_mail_id (column I = 9th col)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${sheetName}!I${rowIndex}`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[cm.emailId]],
+      },
+    });
+
+    res.json({
+      message: "CM updated successfully in Google Sheet",
+      ticketKey,
+      backupCM_email: cm.emailId
+    });
+
+  } catch (err) {
+    console.error("Error updating backup CM in Google Sheet:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 
 
@@ -1020,128 +1013,3 @@ exports.qmdata = async (req, res) => {
 
 
 
-
-// function getCurrentIST() {
-//   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-// }
-
-// function formatISTDateYMD(date) {
-//   const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-//   const yyyy = istDate.getFullYear();
-//   const mm = String(istDate.getMonth() + 1).padStart(2, "0");
-//   const dd = String(istDate.getDate()).padStart(2, "0");
-//   const hh = String(istDate.getHours()).padStart(2, "0");
-//   const mi = String(istDate.getMinutes()).padStart(2, "0");
-//   const ss = String(istDate.getSeconds()).padStart(2, "0");
-//   return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-// }
-
-// function calculateSLA(ticket, user) {
-//   // Case 1: No taskType & subTaskType
-//   if (!ticket.taskType && !ticket.subTaskType) {
-//     return {
-//       deadline: "N/A",
-//       timeRemaining: "00:00:00",
-//       isBreached: false,
-//       status: "Not Applicable"
-//     };
-//   }
-
-//   // Case 2: Live Confirmation SLA (Shift Start + 2 hrs)
-//   if (ticket.taskType === "Live Confirmation") {
-//     if (!user || !user.shiftStart) {
-//       return {
-//         deadline: "N/A",
-//         timeRemaining: "00:00:00",
-//         isBreached: false,
-//         status: "Shift Time Missing"
-//       };
-//     }
-
-//     const today = getCurrentIST();
-//     const [hh, mm] = user.shiftStart.split(":").map(Number);
-//     const shiftStartDateTime = new Date(today);
-//     shiftStartDateTime.setHours(hh, mm, 0, 0);
-
-//     const slaDeadline = new Date(shiftStartDateTime.getTime() + 2 * 60 * 60 * 1000);
-//     const nowIST = getCurrentIST();
-
-//     const diffMs = slaDeadline - nowIST;
-//     const absMs = Math.abs(diffMs);
-
-//     const hours = String(Math.floor(absMs / (1000 * 60 * 60))).padStart(2, "0");
-//     const minutes = String(Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, "0");
-//     const seconds = String(Math.floor((absMs % (1000 * 60)) / 1000)).padStart(2, "0");
-
-//     const sign = diffMs < 0 ? "-" : "";
-//     const timeRemaining = `${sign}${hours}:${minutes}:${seconds}`;
-
-//     let status = "Normal";
-//     if (diffMs <= 0) status = "Breached";
-//     else if (diffMs < 3600000) status = "Critical";
-
-//     return {
-//       deadline: formatISTDateYMD(slaDeadline),
-//       timeRemaining,
-//       isBreached: diffMs <= 0,
-//       status
-//     };
-//   }
-
-//   // Case 3: Other taskTypes → for now no SLA
-//   return {
-//     deadline: "N/A",
-//     timeRemaining: "00:00:00",
-//     isBreached: false,
-//     status: "No SLA Rule"
-//   };
-// }
-
-// exports.getTicketSLA = async (req, res) => {
-//   try {
-//     const { emailId } = req.query;  // pass mailId in query param
-
-//     console.log('req.query',req.query);
-    
-
-//     // 1. Find user role from UserData
-//     const currentUser = await UserData.findOne({ emailId }).lean();
-//     if (!currentUser) {
-//       return res.status(404).json({ success: false, error: "User not found" });
-//     }
-//     console.log('currentUser',currentUser);
-    
-
-//     const { role } = currentUser;
-//     console.log('role',role);
-    
-
-//     // 2. Tickets filter based on role
-//     let query = {};
-//     if (role === 1) {
-//       query.CM_email = emailId; // only user’s tickets
-//     }
-
-//     const tickets = await NetflixTicket.find(query).lean();
-
-//     // 3. Process SLA for each ticket
-//     const result = await Promise.all(
-//       tickets.map(async (ticket) => {
-//         const userForSLA = await UserData.findOne({ emailId: ticket.CM_email }).lean();
-//         const slaData = calculateSLA(ticket, userForSLA);
-//         return {
-//           ticketId: ticket.ticketID,
-//           taskType: ticket.taskType,
-//           subTaskType: ticket.subTaskType,
-//           backupCM_email: ticket.backupCM_email,
-//           slaData
-//         };
-//       })
-//     );
-
-//     res.status(200).json({ success: true, count: result.length, tickets: result });
-//   } catch (err) {
-//     console.error("Error in getTicketsSLA:", err);
-//     res.status(500).json({ success: false, error: "Internal Server Error" });
-//   }
-// };
