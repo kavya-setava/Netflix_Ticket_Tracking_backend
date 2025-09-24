@@ -299,7 +299,8 @@ const cron = require('node-cron');
 
 // ================= Configuration =================
 const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
-const SHEET_NAME = 'Sheet1';
+const SHEET_NAME = 'Copy of Sheet1';
+// const SHEET_NAME = 'Sheet1';
 const RANGE = 'A1:M';
 const mongoURI = 'mongodb+srv://mcube:123@cluster0.mvb09va.mongodb.net/netflix_db';
 const API_KEY = 'AIzaSyAd7mk5rSyABQQyr40r3gWMs0ZMuMWE_Hw';

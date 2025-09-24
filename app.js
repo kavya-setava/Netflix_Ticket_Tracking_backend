@@ -6,7 +6,7 @@ const connectDB = require('./DataBase/db');
 const netflixRoutes = require('./routes/netflixGetAllData.js'); // adjust path as needed
 const authRoutes = require('./routes/authRoute.js')
 //const route = require('./routes/indexRoute');
-const { migrateData } = require('./scripts/excelDataToDb.js');
+// const { migrateData } = require('./scripts/excelDataToDb.js');
 const cron = require('node-cron');
 const taskRoutes = require("./routes/taskType.js");
 

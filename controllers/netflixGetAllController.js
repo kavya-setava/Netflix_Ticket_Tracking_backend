@@ -514,45 +514,251 @@ async function processTicketsWithSLA(tickets, currentIST) {
 
 
 // Enable/Disable state resolver
+// function resolveEnableStates(tickets) {
+//   let enabledSet = new Set();
+
+//   // 1. ASAP tickets → always enabled
+//   tickets.forEach(ticket => {
+//     if (ticket.asap === true) {
+//       enabledSet.add(ticket.ticketKey);
+//     }
+//   });
+
+//   // 2. If any ASAP active → hold normal tickets
+//   const hasActiveASAP = tickets.some(
+//     t => t.asap === true && t.status !== "Closed"
+//   );
+
+//   if (!hasActiveASAP) {
+//     // 3. Normal Assigned tickets → sort by latest updated
+//     const assignedTickets = tickets
+//       .filter(t => t.status === "Assigned" && !t.asap)
+//       .sort((a, b) => new Date(b.updated) - new Date(a.updated));
+
+//     if (assignedTickets.length > 0) {
+//       enabledSet.add(assignedTickets[0].ticketKey);
+//     }
+//   }
+
+//   // 4. Tickets already started remain enabled
+//   tickets.forEach(ticket => {
+//     if (ticket.status === "Start") {
+//       enabledSet.add(ticket.ticketKey);
+//     }
+//   });
+
+//   // 5. Add state field
+//   return tickets.map(ticket => ({
+//     ...ticket,
+//     state: enabledSet.has(ticket.ticketKey) ? "enable" : "disable"
+//   }));
+// }
+
+
+
+// function resolveEnableStates(tickets) {
+//   let enabledSet = new Set();
+
+//   const hasActiveASAP = tickets.some(
+//     t => t.asap === true && t.status !== "Closed"
+//   );
+
+//   // Step 1 — ASAP tickets always enabled if any
+//   if (hasActiveASAP) {
+//     tickets.forEach(ticket => {
+//       if (ticket.asap === true && ticket.status !== "Closed") {
+//         enabledSet.add(ticket.ticketKey);
+//       }
+//     });
+//     return tickets.map(ticket => ({
+//       ...ticket,
+//       state: enabledSet.has(ticket.ticketKey) ? "enable" : "disable"
+//     }));
+//   }
+
+//   // Step 2 — Find currently enabled ticket
+//   const currentlyEnabled = tickets.find(t => t.state === "enable");
+
+//   // Step 3 — If currently enabled ticket changed status from "Start"
+//   const changedTicket = tickets.find(t => t.status !== "Start" && t.state === "enable");
+
+//   if (changedTicket) {
+//     // If status is "On Hold" → do NOT enable next ticket
+//     if (changedTicket.status === "On Hold") {
+//       return tickets.map(ticket => ({
+//         ...ticket,
+//         state: "disable"
+//       }));
+//     }
+
+//     // Enable next latest ticket
+//     const nextTicket = tickets
+//       .filter(t => t.ticketKey !== changedTicket.ticketKey && t.status !== "Closed" && t.status !== "On Hold")
+//       .sort((a, b) => new Date(b.updated) - new Date(a.updated))[0];
+
+//     if (nextTicket) {
+//       enabledSet.add(nextTicket.ticketKey);
+//     }
+//   }
+
+//   // Step 4 — If no change → keep current "Start" ticket enabled
+//   if (!changedTicket) {
+//     const startTicket = tickets.find(t => t.status === "Start");
+//     if (startTicket) enabledSet.add(startTicket.ticketKey);
+//     else {
+//       // If no Start ticket → enable latest Assigned ticket
+//       const latestAssigned = tickets
+//         .filter(t => t.status === "Assigned")
+//         .sort((a, b) => new Date(b.updated) - new Date(a.updated))[0];
+//       if (latestAssigned) enabledSet.add(latestAssigned.ticketKey);
+//     }
+//   }
+
+//   return tickets.map(ticket => ({
+//     ...ticket,
+//     state: enabledSet.has(ticket.ticketKey) ? "enable" : "disable"
+//   }));
+// }
+
+// below is working fine 
+
+// function resolveEnableStates(tickets) {
+//   let enabledSet = new Set();
+
+//   // Sort tickets by latest updated
+//   const sortedTickets = [...tickets].sort((a, b) => new Date(b.updated) - new Date(a.updated));
+
+//   // Find working ticket (currently Start)
+//   const workingTicket = sortedTickets.find(t => t.status === "Start");
+
+//   // Step 1 — Handle ASAP + On Hold
+//   const onHoldTicket = sortedTickets.find(t => t.status === "On Hold");
+//   if (onHoldTicket) {
+//     const asapTickets = tickets.filter(t => t.asap === true && t.status !== "Closed");
+//     if (asapTickets.length > 0) {
+//       asapTickets.forEach(t => enabledSet.add(t.ticketKey)); // enable only ASAP
+//     }
+//     // If On Hold but no ASAP → nothing enabled
+//     return tickets.map(t => ({
+//       ...t,
+//       state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+//     }));
+//   }
+
+//   // Step 2 — If working ticket is in Start → only it is enabled
+//   if (workingTicket) {
+//     enabledSet.add(workingTicket.ticketKey);
+//     return tickets.map(t => ({
+//       ...t,
+//       state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+//     }));
+//   }
+
+//   // Step 3 — If a working ticket moved to Sent to VAO / Solution Provided / Need Information / Closed
+//   const closedStatuses = ["Sent to VAO", "Solution Provided", "Need Information", "Closed"];
+//   const lastClosedTicket = sortedTickets.find(t => closedStatuses.includes(t.status));
+
+//   if (lastClosedTicket) {
+//     tickets.forEach(t => {
+//       if (t.status === "Assigned") {
+//         enabledSet.add(t.ticketKey); // all assigned tickets are enabled again
+//       }
+//     });
+//     return tickets.map(t => ({
+//       ...t,
+//       state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+//     }));
+//   }
+
+//   // Step 4 — Default (initial case): all Assigned tickets enabled
+//   tickets.forEach(t => {
+//     if (t.status === "Assigned") {
+//       enabledSet.add(t.ticketKey);
+//     }
+//   });
+
+//   return tickets.map(t => ({
+//     ...t,
+//     state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+//   }));
+// }
+
 function resolveEnableStates(tickets) {
   let enabledSet = new Set();
 
-  // 1. ASAP tickets → always enabled
-  tickets.forEach(ticket => {
-    if (ticket.asap === true) {
-      enabledSet.add(ticket.ticketKey);
+  // Sort tickets by latest updated
+  let sortedTickets = [...tickets].sort((a, b) => new Date(b.updated) - new Date(a.updated));
+
+  // Find working ticket (currently Start)
+  const workingTicket = sortedTickets.find(t => t.status === "Start");
+
+  // Step 1 — Handle ASAP + On Hold
+  const onHoldTicket = sortedTickets.find(t => t.status === "On Hold");
+  if (onHoldTicket) {
+    const asapTickets = sortedTickets.filter(
+      t => t.asap === true && !["Closed", "Sent to VAO", "Solution Provided", "Need Information"].includes(t.status)
+    );
+
+    if (asapTickets.length > 0) {
+      asapTickets.forEach(t => enabledSet.add(t.ticketKey)); // enable only ASAP
+    } else {
+      // All ASAP tickets are completed → enable all assigned tickets
+      sortedTickets.forEach(t => {
+        if (t.status === "Assigned") enabledSet.add(t.ticketKey);
+      });
     }
-  });
 
-  // 2. If any ASAP active → hold normal tickets
-  const hasActiveASAP = tickets.some(
-    t => t.asap === true && t.status !== "Closed"
-  );
-
-  if (!hasActiveASAP) {
-    // 3. Normal Assigned tickets → sort by latest updated
-    const assignedTickets = tickets
-      .filter(t => t.status === "Assigned" && !t.asap)
-      .sort((a, b) => new Date(b.updated) - new Date(a.updated));
-
-    if (assignedTickets.length > 0) {
-      enabledSet.add(assignedTickets[0].ticketKey);
-    }
+    return sortedTickets.map(t => ({
+      ...t,
+      state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+    }));
   }
 
-  // 4. Tickets already started remain enabled
-  tickets.forEach(ticket => {
-    if (ticket.status === "Start") {
-      enabledSet.add(ticket.ticketKey);
+  // Step 2 — If working ticket is in Start → only it is enabled
+  if (workingTicket) {
+    enabledSet.add(workingTicket.ticketKey);
+    return sortedTickets.map(t => ({
+      ...t,
+      state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+    }));
+  }
+
+  // Step 3 — If a ticket moved to Closed / Sent to VAO / Solution Provided / Need Information
+  const closedStatuses = ["Sent to VAO", "Solution Provided", "Need Information", "Closed"];
+  const hasClosedTicket = sortedTickets.some(
+    t => closedStatuses.includes(t.status) && t.status !== "On Hold"
+  );
+
+  if (hasClosedTicket) {
+    sortedTickets.forEach(t => {
+      if (t.status === "Assigned") enabledSet.add(t.ticketKey);
+    });
+
+    // Move only Closed/VAO/Solution/Need Info tickets to bottom (but not On Hold)
+    sortedTickets = [
+      ...sortedTickets.filter(t => !closedStatuses.includes(t.status)), // keep normal tickets + On Hold
+      ...sortedTickets.filter(t => closedStatuses.includes(t.status) && t.status !== "On Hold") // push completed ones
+    ];
+
+    return sortedTickets.map(t => ({
+      ...t,
+      state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+    }));
+  }
+
+  // Step 4 — Default (initial case): all Assigned tickets enabled
+  sortedTickets.forEach(t => {
+    if (t.status === "Assigned") {
+      enabledSet.add(t.ticketKey);
     }
   });
 
-  // 5. Add state field
-  return tickets.map(ticket => ({
-    ...ticket,
-    state: enabledSet.has(ticket.ticketKey) ? "enable" : "disable"
+  return sortedTickets.map(t => ({
+    ...t,
+    state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
   }));
 }
+
 
 
 exports.getNetflixTickets = async (req, res) => {
