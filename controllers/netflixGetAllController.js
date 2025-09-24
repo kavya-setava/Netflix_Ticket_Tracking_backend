@@ -444,6 +444,117 @@ async function processTicketsWithSLA(tickets, currentIST) {
 }
 
 // ================== Main Controller ==================
+// exports.getNetflixTickets = async (req, res) => {
+//   try {
+//     const { email, cm_region, page = 1, limit = 25 } = req.query;
+
+//     if (!email) {
+//       return res.status(400).json({ success: false, error: "Email is required" });
+//     }
+
+//     const currentIST = getCurrentIST();
+
+//     // Get user and check role
+//     const user = await UserData.findOne({ emailId: email });
+//     if (!user) {
+//       return res.status(404).json({ success: false, error: "User not found" });
+//     }
+
+//     // For CM users, check if they have any tickets (using backupCM_email)
+//     if (user.role === 1) {
+//       const cmTicket = await NetflixTicket.findOne({ backupCM_email: email }).select("_id");
+
+      
+//       if (!cmTicket) {
+//         return res.status(404).json({ success: false, error: "No tickets found for this user" });
+//       }
+//     }
+
+//     // Build query
+//     const query = buildQuery(req.query, user.role, email);
+
+//     // Get total count and status counts in parallel
+//     const [total, statusCounts] = await Promise.all([
+//       NetflixTicket.countDocuments(query),
+//       getStatusCounts(query)
+//     ]);
+
+//     // Return early if no tickets found for QM users
+//     if (user.role === 0 && total === 0) {
+//       return res.status(404).json({ success: false, error: "No tickets found" });
+//     }
+
+//     // Fetch tickets with optimized selection
+//     const tickets = await NetflixTicket.find(query)
+//       .select('ticketID ticketKey CM_name CM_email backupCM_email AM_name cm_region status startDateTime endDateTime updateddate pauseTime taskType subTaskType created updated')
+//       .sort({ updated: -1 })
+//       .skip((page - 1) * limit)
+//       .limit(parseInt(limit))
+//       .lean();
+
+//     // Process tickets with SLA
+//     const processedTickets = await processTicketsWithSLA(tickets, currentIST);
+
+//     res.status(200).json({
+//       success: true,
+//       count: processedTickets.length,
+//       total,
+//       totalPages: Math.ceil(total / limit),
+//       currentPage: parseInt(page),
+//       data: processedTickets,
+//       userType: user.role === 1 ? "CM" : "QM",
+//       metrics: statusCounts
+//     });
+
+//   } catch (error) {
+//     console.error("Error fetching tickets:", error);
+//     res.status(500).json({ success: false, error: "Internal server error" });
+//   }
+// };
+
+
+// Enable/Disable state resolver
+function resolveEnableStates(tickets) {
+  let enabledSet = new Set();
+
+  // 1. ASAP tickets → always enabled
+  tickets.forEach(ticket => {
+    if (ticket.asap === true) {
+      enabledSet.add(ticket.ticketKey);
+    }
+  });
+
+  // 2. If any ASAP active → hold normal tickets
+  const hasActiveASAP = tickets.some(
+    t => t.asap === true && t.status !== "Closed"
+  );
+
+  if (!hasActiveASAP) {
+    // 3. Normal Assigned tickets → sort by latest updated
+    const assignedTickets = tickets
+      .filter(t => t.status === "Assigned" && !t.asap)
+      .sort((a, b) => new Date(b.updated) - new Date(a.updated));
+
+    if (assignedTickets.length > 0) {
+      enabledSet.add(assignedTickets[0].ticketKey);
+    }
+  }
+
+  // 4. Tickets already started remain enabled
+  tickets.forEach(ticket => {
+    if (ticket.status === "Start") {
+      enabledSet.add(ticket.ticketKey);
+    }
+  });
+
+  // 5. Add state field
+  return tickets.map(ticket => ({
+    ...ticket,
+    state: enabledSet.has(ticket.ticketKey) ? "enable" : "disable"
+  }));
+}
+
+
 exports.getNetflixTickets = async (req, res) => {
   try {
     const { email, cm_region, page = 1, limit = 25 } = req.query;
@@ -454,17 +565,14 @@ exports.getNetflixTickets = async (req, res) => {
 
     const currentIST = getCurrentIST();
 
-    // Get user and check role
+    // Get user and role
     const user = await UserData.findOne({ emailId: email });
     if (!user) {
       return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    // For CM users, check if they have any tickets (using backupCM_email)
     if (user.role === 1) {
       const cmTicket = await NetflixTicket.findOne({ backupCM_email: email }).select("_id");
-
-      
       if (!cmTicket) {
         return res.status(404).json({ success: false, error: "No tickets found for this user" });
       }
@@ -473,27 +581,86 @@ exports.getNetflixTickets = async (req, res) => {
     // Build query
     const query = buildQuery(req.query, user.role, email);
 
-    // Get total count and status counts in parallel
+    // Get total and status counts
     const [total, statusCounts] = await Promise.all([
       NetflixTicket.countDocuments(query),
       getStatusCounts(query)
     ]);
 
-    // Return early if no tickets found for QM users
     if (user.role === 0 && total === 0) {
       return res.status(404).json({ success: false, error: "No tickets found" });
     }
 
-    // Fetch tickets with optimized selection
-    const tickets = await NetflixTicket.find(query)
-      .select('ticketID ticketKey CM_name CM_email backupCM_email AM_name cm_region status startDateTime endDateTime updateddate pauseTime taskType subTaskType created updated')
-      .sort({ updated: -1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit))
-      .lean();
+    // 🔥 Aggregation for custom ordering
+    const tickets = await NetflixTicket.aggregate([
+      { $match: query },
+      {
+        $addFields: {
+          priorityOrder: {
+            $cond: [
+              { $eq: ["$status", "Start"] }, 1, // first priority
+              {
+                $cond: [
+                  { $eq: ["$asap", true] }, 2, // second priority
+                  3 // rest
+                ]
+              }
+            ]
+          }
+        }
+      },
+      { $sort: { priorityOrder: 1, updated: -1 } }, // custom sort
+      { $skip: (page - 1) * parseInt(limit) },
+      { $limit: parseInt(limit) },
+      {
+        $project: {
+          ticketID: 1,
+          ticketKey: 1,
+          CM_name: 1,
+          CM_email: 1,
+          backupCM_email: 1,
+          AM_name: 1,
+          cm_region: 1,
+          status: 1,
+          startDateTime: 1,
+          endDateTime: 1,
+          updateddate: 1,
+          pauseTime: 1,
+          taskType: 1,
+          subTaskType: 1,
+          created: 1,
+          updated: 1,
+          asap: 1 // ✅ include asap
+        }
+      }
+    ]);
 
-    // Process tickets with SLA
-    const processedTickets = await processTicketsWithSLA(tickets, currentIST);
+    // SLA calculation
+    let processedTickets = await processTicketsWithSLA(tickets, currentIST);
+    // ✅ Apply enable/disable logic
+    processedTickets = resolveEnableStates(processedTickets);
+    // 🔥 Figure out nextTicketEnable:
+    // 1. Get IDs of all Start/asap tickets
+    const activeTicketKeys = processedTickets
+  .filter(t => t.status === "Start" || t.asap === true)
+  .map(t => t.ticketKey);
+
+    let nextTicketEnable = null;
+
+    if (activeTicketKeys.length > 0) {
+      // Find next available after those are closed
+      const nextTicket = await NetflixTicket.findOne({
+        ...query,
+         ticketKey: { $nin: activeTicketKeys },
+        status: { $ne: "Closed" }
+      })
+        .sort({ updated: -1 })
+        .select("ticketKey");
+
+      if (nextTicket) {
+        nextTicketEnable = nextTicket.ticketKey;
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -503,7 +670,8 @@ exports.getNetflixTickets = async (req, res) => {
       currentPage: parseInt(page),
       data: processedTickets,
       userType: user.role === 1 ? "CM" : "QM",
-      metrics: statusCounts
+      metrics: statusCounts,
+      nextTicketEnable // ✅ added field
     });
 
   } catch (error) {
@@ -514,10 +682,11 @@ exports.getNetflixTickets = async (req, res) => {
 
 
 
+
 exports.updateTicketByKey_DB = async (req, res) => {
   try {
     const { ticketKey } = req.params;
-    const { status, startTime, endTime, SLA } = req.body;
+    const { status, startTime, endTime, SLA ,asap} = req.body;
 
     console.log("🔄 Updating ticket in DB:", ticketKey);
 
@@ -527,15 +696,25 @@ exports.updateTicketByKey_DB = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
-    if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined) {
+    if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined,  asap === undefined) {
       return res.status(400).json({ success: false, error: 'No fields to update' });
     }
-
+    
+    if (
+      status === undefined &&
+      startTime === undefined &&
+      endTime === undefined &&
+      SLA === undefined &&
+      asap === undefined
+    ) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
     const updateData = {
       status: status ?? existingTicket.status,
       startTime: startTime ?? existingTicket.startTime,
       endTime: endTime ?? existingTicket.endTime,
       SLA: SLA ?? existingTicket.SLA,
+      asap: asap ?? existingTicket.asap,
       updateddate: new Date()
     };
 
