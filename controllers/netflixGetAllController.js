@@ -837,10 +837,27 @@ function resolveEnableStates(tickets) {
   // 1. Enabled tickets on top
   // 2. Disabled tickets (rest)
   // -------------------------
+  // finalTickets = [
+  //   ...finalTickets.filter(t => t.state === "enable"),
+  //   ...finalTickets.filter(t => t.state === "disable")
+  // ];
   finalTickets = [
-    ...finalTickets.filter(t => t.state === "enable"),
-    ...finalTickets.filter(t => t.state === "disable")
-  ];
+  // Enabled tickets first
+  ...finalTickets.filter(t => t.state === "enable" && t.status === "On Hold"),
+  ...finalTickets.filter(t => t.state === "enable" && t.asap === true && t.status !== "On Hold"),
+  ...finalTickets.filter(
+    t =>
+      t.state === "enable" &&
+      t.status !== "On Hold" &&
+      !(t.asap === true && t.status !== "On Hold")
+  ),
+
+  // Disabled tickets next
+  ...finalTickets.filter(t => t.state === "disable" && t.status === "Assigned"),
+  ...finalTickets.filter(
+    t => t.state === "disable" && t.status !== "Assigned"
+  )
+];
 
   return finalTickets;
 }
@@ -993,15 +1010,7 @@ exports.updateTicketByKey_DB = async (req, res) => {
       return res.status(400).json({ success: false, error: 'No fields to update' });
     }
     
-    if (
-      status === undefined &&
-      startTime === undefined &&
-      endTime === undefined &&
-      SLA === undefined &&
-      asap === undefined
-    ) {
-      return res.status(400).json({ success: false, error: 'No fields to update' });
-    }
+    
     const updateData = {
       status: status ?? existingTicket.status,
       startTime: startTime ?? existingTicket.startTime,
