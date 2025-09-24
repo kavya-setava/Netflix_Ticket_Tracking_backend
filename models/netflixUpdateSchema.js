@@ -84,6 +84,10 @@ const NetflixTicketsSchema = new Schema({
   subTaskType: {
     type: String,
     default: ""
+  },
+  asap : {
+    type: Boolean,
+    default:false
   }
 });
 

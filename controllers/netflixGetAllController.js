@@ -2,6 +2,7 @@ const NetflixTicket = require('../models/Netflixupdateschema');
 const { google } = require('googleapis');
 const path = require('path');
 const UserData =  require('../models/UserSchema')
+const ticketActivity = require("../models/utilizationSchema");
 require('dotenv').config();
 
 const auth = new google.auth.GoogleAuth({
@@ -303,6 +304,39 @@ function calculateSLA(ticket, user, currentIST) {
   };
 }
 
+const secondsToHMS = (seconds) => {
+  const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
+  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+  const s = String(seconds % 60).padStart(2, "0");
+
+  return `${h}:${m}:${s}`;
+};
+
+const hmsToSeconds = (hms) => {
+  const [h, m, s] = hms.split(':').map(Number);
+  return h*3600+m*60+s;
+}
+
+const calculateCurrentUtilizationTimer = (ticket) =>{
+  if(!ticket){
+    return "00:00:00"
+  }
+
+  let totalSeconds = hmsToSeconds(ticket.totalDuration||"00:00:00")
+
+  const lastSession = ticket.sessions && ticket.sessions.length > 0 ? ticket.sessions[ticket.sessions.length-1] : null
+
+  if(ticket.status === "Start"){
+    const runningSeconds = Math.floor((new Date() - new Date(lastSession.startedAt))/1000)
+    return secondsToHMS(runningSeconds+totalSeconds)
+  }
+
+  if(["Interim", "Solution Provided", "Need More Information", "Send To VAO", "Closed", "Assigned"].includes(ticket.status)){
+    return ticket.totalDuration || "00:00:00";
+  }
+
+  return "00:00:00"
+}
 // Helper function to build query
 function buildQuery(params, role, email) {
   const {
@@ -430,15 +464,32 @@ async function processTicketsWithSLA(tickets, currentIST) {
     userMap[user.emailId] = user;
   });
 
+  const ticketIds = tickets.map(t => t.ticketKey);
+  const activities = await ticketActivity.find({ticketId : {$in : ticketIds}}).lean()
+  const activityMap = {}
+  activities.forEach(a => (activityMap[a.ticketId] = a))
+
   return tickets.map(ticket => {
     // UPDATED: Use backupCM_email for SLA, fallback to CM_email
     const userEmail = ticket.backupCM_email || ticket.CM_email;
     const userForSLA = userMap[userEmail];
     const slaData = calculateSLA(ticket, userForSLA, currentIST);
+
+    const utilizationData = activityMap[ticket.ticketKey]
+    const utilization = utilizationData ? 
+      {
+        utTimer : calculateCurrentUtilizationTimer(utilizationData),
+        totalDuration : utilizationData.totalDuration,
+        status : utilizationData.status
+      } : {
+        utTimer : "00:00:00",
+        status  : "Assigned"
+      }
     return {
       ...ticket,
       pauseTime: ticket.pauseTime || "00:00:00",
-      slaData
+      slaData,
+      utilization
     };
   });
 }
