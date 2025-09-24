@@ -620,7 +620,7 @@ async function processTicketsWithSLA(tickets, currentIST) {
 //   }));
 // }
 
-// below is working fine 
+// below is working fine  ...perfect 
 
 // function resolveEnableStates(tickets) {
 //   let enabledSet = new Set();
@@ -683,10 +683,87 @@ async function processTicketsWithSLA(tickets, currentIST) {
 //   }));
 // }
 
+// function resolveEnableStates(tickets) {
+//   let enabledSet = new Set();
+
+//   // Sort tickets by latest updated
+//   let sortedTickets = [...tickets].sort((a, b) => new Date(b.updated) - new Date(a.updated));
+
+//   // Find working ticket (currently Start)
+//   const workingTicket = sortedTickets.find(t => t.status === "Start");
+
+//   // Step 1 — Handle ASAP + On Hold
+//   const onHoldTicket = sortedTickets.find(t => t.status === "On Hold");
+//   if (onHoldTicket) {
+//     const asapTickets = sortedTickets.filter(
+//       t => t.asap === true && !["Closed", "Sent to VAO", "Solution Provided", "Need Information"].includes(t.status)
+//     );
+
+//     if (asapTickets.length > 0) {
+//       asapTickets.forEach(t => enabledSet.add(t.ticketKey)); // enable only ASAP
+//     } else {
+//       // All ASAP tickets are completed → enable all assigned tickets
+//       sortedTickets.forEach(t => {
+//         if (t.status === "Assigned") enabledSet.add(t.ticketKey);
+//       });
+//     }
+
+//     return sortedTickets.map(t => ({
+//       ...t,
+//       state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+//     }));
+//   }
+
+//   // Step 2 — If working ticket is in Start → only it is enabled
+//   if (workingTicket) {
+//     enabledSet.add(workingTicket.ticketKey);
+//     return sortedTickets.map(t => ({
+//       ...t,
+//       state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+//     }));
+//   }
+
+//   // Step 3 — If a ticket moved to Closed / Sent to VAO / Solution Provided / Need Information
+//   const closedStatuses = ["Sent to VAO", "Solution Provided", "Need Information", "Closed"];
+//   const hasClosedTicket = sortedTickets.some(
+//     t => closedStatuses.includes(t.status) && t.status !== "On Hold"
+//   );
+
+//   if (hasClosedTicket) {
+//     sortedTickets.forEach(t => {
+//       if (t.status === "Assigned") enabledSet.add(t.ticketKey);
+//     });
+
+//     // Move only Closed/VAO/Solution/Need Info tickets to bottom (but not On Hold)
+//     sortedTickets = [
+//       ...sortedTickets.filter(t => !closedStatuses.includes(t.status)), // keep normal tickets + On Hold
+//       ...sortedTickets.filter(t => closedStatuses.includes(t.status) && t.status !== "On Hold") // push completed ones
+//     ];
+
+//     return sortedTickets.map(t => ({
+//       ...t,
+//       state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+//     }));
+//   }
+
+//   // Step 4 — Default (initial case): all Assigned tickets enabled
+//   sortedTickets.forEach(t => {
+//     if (t.status === "Assigned") {
+//       enabledSet.add(t.ticketKey);
+//     }
+//   });
+
+//   return sortedTickets.map(t => ({
+//     ...t,
+//     state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
+//   }));
+// }
+
+
 function resolveEnableStates(tickets) {
   let enabledSet = new Set();
 
-  // Sort tickets by latest updated
+  // Sort tickets by latest updated first
   let sortedTickets = [...tickets].sort((a, b) => new Date(b.updated) - new Date(a.updated));
 
   // Find working ticket (currently Start)
@@ -707,57 +784,51 @@ function resolveEnableStates(tickets) {
         if (t.status === "Assigned") enabledSet.add(t.ticketKey);
       });
     }
-
-    return sortedTickets.map(t => ({
-      ...t,
-      state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
-    }));
   }
 
   // Step 2 — If working ticket is in Start → only it is enabled
-  if (workingTicket) {
+  else if (workingTicket) {
     enabledSet.add(workingTicket.ticketKey);
-    return sortedTickets.map(t => ({
-      ...t,
-      state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
-    }));
   }
 
   // Step 3 — If a ticket moved to Closed / Sent to VAO / Solution Provided / Need Information
-  const closedStatuses = ["Sent to VAO", "Solution Provided", "Need Information", "Closed"];
-  const hasClosedTicket = sortedTickets.some(
-    t => closedStatuses.includes(t.status) && t.status !== "On Hold"
-  );
+  else {
+    const closedStatuses = ["Sent to VAO", "Solution Provided", "Need Information", "Closed"];
+    const hasClosedTicket = sortedTickets.some(t => closedStatuses.includes(t.status));
 
-  if (hasClosedTicket) {
-    sortedTickets.forEach(t => {
-      if (t.status === "Assigned") enabledSet.add(t.ticketKey);
-    });
-
-    // Move only Closed/VAO/Solution/Need Info tickets to bottom (but not On Hold)
-    sortedTickets = [
-      ...sortedTickets.filter(t => !closedStatuses.includes(t.status)), // keep normal tickets + On Hold
-      ...sortedTickets.filter(t => closedStatuses.includes(t.status) && t.status !== "On Hold") // push completed ones
-    ];
-
-    return sortedTickets.map(t => ({
-      ...t,
-      state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
-    }));
+    if (hasClosedTicket) {
+      sortedTickets.forEach(t => {
+        if (t.status === "Assigned") enabledSet.add(t.ticketKey);
+      });
+    } else {
+      // Step 4 — Default (initial case): all Assigned tickets enabled
+      sortedTickets.forEach(t => {
+        if (t.status === "Assigned") enabledSet.add(t.ticketKey);
+      });
+    }
   }
 
-  // Step 4 — Default (initial case): all Assigned tickets enabled
-  sortedTickets.forEach(t => {
-    if (t.status === "Assigned") {
-      enabledSet.add(t.ticketKey);
-    }
-  });
-
-  return sortedTickets.map(t => ({
+  // Add state flag
+  let finalTickets = sortedTickets.map(t => ({
     ...t,
     state: enabledSet.has(t.ticketKey) ? "enable" : "disable"
   }));
+
+  // Reorder:
+  // 1. Enabled tickets on top
+  // 2. Disabled tickets (normal ones)
+  // 3. Closed/VAO/Solution/Need Info at bottom (by updated timestamp)
+  const closedStatuses = ["Sent to VAO", "Solution Provided", "Need Information", "Closed"];
+
+  finalTickets = [
+    ...finalTickets.filter(t => t.state === "enable"),
+    ...finalTickets.filter(t => t.state === "disable" && !closedStatuses.includes(t.status)),
+    ...finalTickets.filter(t => closedStatuses.includes(t.status)).sort((a, b) => new Date(b.updated) - new Date(a.updated))
+  ];
+
+  return finalTickets;
 }
+
 
 
 
