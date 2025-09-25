@@ -865,130 +865,6 @@ function resolveEnableStates(tickets) {
 
 
 
-// exports.getNetflixTickets = async (req, res) => {
-//   try {
-//     const { email, cm_region, page = 1, limit = 25 } = req.query;
-
-//     if (!email) {
-//       return res.status(400).json({ success: false, error: "Email is required" });
-//     }
-
-//     const currentIST = getCurrentIST();
-
-//     // Get user and role
-//     const user = await UserData.findOne({ emailId: email });
-//     if (!user) {
-//       return res.status(404).json({ success: false, error: "User not found" });
-//     }
-
-//     if (user.role === 1) {
-//       const cmTicket = await NetflixTicket.findOne({ backupCM_email: email }).select("_id");
-//       if (!cmTicket) {
-//         return res.status(404).json({ success: false, error: "No tickets found for this user" });
-//       }
-//     }
-
-//     // Build query
-//     const query = buildQuery(req.query, user.role, email);
-
-//     // Get total and status counts
-//     const [total, statusCounts] = await Promise.all([
-//       NetflixTicket.countDocuments(query),
-//       getStatusCounts(query)
-//     ]);
-
-//     if (user.role === 0 && total === 0) {
-//       return res.status(404).json({ success: false, error: "No tickets found" });
-//     }
-
-//     // 🔥 Aggregation for custom ordering
-//     const tickets = await NetflixTicket.aggregate([
-//       { $match: query },
-//       {
-//         $addFields: {
-//           priorityOrder: {
-//             $cond: [
-//               { $eq: ["$status", "Start"] }, 1, // first priority
-//               {
-//                 $cond: [
-//                   { $eq: ["$asap", true] }, 2, // second priority
-//                   3 // rest
-//                 ]
-//               }
-//             ]
-//           }
-//         }
-//       },
-//       { $sort: { priorityOrder: 1, updated: -1 } }, // custom sort
-//       { $skip: (page - 1) * parseInt(limit) },
-//       { $limit: parseInt(limit) },
-//       {
-//         $project: {
-//           ticketID: 1,
-//           ticketKey: 1,
-//           CM_name: 1,
-//           CM_email: 1,
-//           backupCM_email: 1,
-//           AM_name: 1,
-//           cm_region: 1,
-//           status: 1,
-//           startDateTime: 1,
-//           endDateTime: 1,
-//           updateddate: 1,
-//           pauseTime: 1,
-//           taskType: 1,
-//           subTaskType: 1,
-//           created: 1,
-//           updated: 1,
-//           asap: 1 // ✅ include asap
-//         }
-//       }
-//     ]);
-
-//     // SLA calculation
-//     let processedTickets = await processTicketsWithSLA(tickets, currentIST);
-//     // ✅ Apply enable/disable logic
-//     processedTickets = resolveEnableStates(processedTickets);
-//     // 🔥 Figure out nextTicketEnable:
-//     // 1. Get IDs of all Start/asap tickets
-//     const activeTicketKeys = processedTickets
-//   .filter(t => t.status === "Start" || t.asap === true)
-//   .map(t => t.ticketKey);
-
-//     let nextTicketEnable = null;
-
-//     if (activeTicketKeys.length > 0) {
-//       // Find next available after those are closed
-//       const nextTicket = await NetflixTicket.findOne({
-//         ...query,
-//          ticketKey: { $nin: activeTicketKeys },
-//         status: { $ne: "Closed" }
-//       })
-//         .sort({ updated: -1 })
-//         .select("ticketKey");
-
-//       if (nextTicket) {
-//         nextTicketEnable = nextTicket.ticketKey;
-//       }
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       count: processedTickets.length,
-//       total,
-//       totalPages: Math.ceil(total / limit),
-//       currentPage: parseInt(page),
-//       data: processedTickets,
-//       userType: user.role === 1 ? "CM" : "QM",
-//       metrics: statusCounts,
-//       nextTicketEnable // ✅ added field
-//     });
-
-//   } catch (error) {
-//     console.error("Error fetching tickets:", error);
-//     res.status(500).json({ success: false, error: "Internal server error" });
-//   }
-// };
 
 exports.getNetflixTickets = async (req, res) => {
   try {
@@ -1000,15 +876,16 @@ exports.getNetflixTickets = async (req, res) => {
 
     const currentIST = getCurrentIST();
 
-    // Get user and role
-    const user = await UserData.findOne({ emailId: email });
+    // Get user and role - cache this if possible
+    const user = await UserData.findOne({ emailId: email }).select('role').lean();
     if (!user) {
       return res.status(404).json({ success: false, error: "User not found" });
     }
 
+    // For role 1, check if any tickets exist first (fast check)
     if (user.role === 1) {
-      const cmTicket = await NetflixTicket.findOne({ backupCM_email: email }).select("_id");
-      if (!cmTicket) {
+      const cmTicketExists = await NetflixTicket.exists({ backupCM_email: email });
+      if (!cmTicketExists) {
         return res.status(404).json({ success: false, error: "No tickets found for this user" });
       }
     }
@@ -1016,96 +893,108 @@ exports.getNetflixTickets = async (req, res) => {
     // Build query
     const query = buildQuery(req.query, user.role, email);
 
-    // Get total and status counts
-    const [total, statusCounts] = await Promise.all([
+    // Get counts and paginated data in parallel
+    const [total, statusCounts, paginatedTickets] = await Promise.all([
       NetflixTicket.countDocuments(query),
-      getStatusCounts(query)
+      getStatusCounts(query),
+      // Optimized aggregation with pagination
+      NetflixTicket.aggregate([
+        { $match: query },
+        {
+          $addFields: {
+            priorityOrder: {
+              $cond: [
+                { $eq: ["$status", "Start"] }, 1,
+                { $cond: [
+                  { $eq: ["$asap", true] }, 2, 3
+                ]}
+              ]
+            }
+          }
+        },
+        { $sort: { priorityOrder: 1, updated: -1 } },
+        // ✅ Add pagination here to process only needed records
+        { $skip: (parseInt(page) - 1) * parseInt(limit) },
+        { $limit: parseInt(limit) },
+        {
+          $project: {
+            ticketID: 1,
+            ticketKey: 1,
+            CM_name: 1,
+            CM_email: 1,
+            backupCM_email: 1,
+            AM_name: 1,
+            cm_region: 1,
+            status: 1,
+            startDateTime: 1,
+            endDateTime: 1,
+            updateddate: 1,
+            pauseTime: 1,
+            taskType: 1,
+            subTaskType: 1,
+            created: 1,
+            updated: 1,
+            asap: 1
+          }
+        }
+      ])
     ]);
 
     if (user.role === 0 && total === 0) {
       return res.status(404).json({ success: false, error: "No tickets found" });
     }
 
-    // 🔥 Fetch ALL tickets first (no skip/limit yet)
-    const allTickets = await NetflixTicket.aggregate([
-      { $match: query },
-      {
-        $addFields: {
-          priorityOrder: {
-            $cond: [
-              { $eq: ["$status", "Start"] }, 1,
-              {
-                $cond: [
-                  { $eq: ["$asap", true] }, 2,
-                  3
-                ]
-              }
-            ]
-          }
-        }
-      },
-      { $sort: { priorityOrder: 1, updated: -1 } },
-      {
-        $project: {
-          ticketID: 1,
-          ticketKey: 1,
-          CM_name: 1,
-          CM_email: 1,
-          backupCM_email: 1,
-          AM_name: 1,
-          cm_region: 1,
-          status: 1,
-          startDateTime: 1,
-          endDateTime: 1,
-          updateddate: 1,
-          pauseTime: 1,
-          taskType: 1,
-          subTaskType: 1,
-          created: 1,
-          updated: 1,
-          asap: 1
-        }
-      }
-    ]);
-
-    // SLA calculation + enable/disable logic
-    let processedTickets = await processTicketsWithSLA(allTickets, currentIST);
+    // Process only the paginated tickets (much faster)
+    let processedTickets = await processTicketsWithSLA(paginatedTickets, currentIST);
     processedTickets = resolveEnableStates(processedTickets);
 
-    // ✅ Apply pagination AFTER state resolution
-    const paginatedTickets = processedTickets.slice(
-      (page - 1) * parseInt(limit),
-      page * parseInt(limit)
-    );
-
-    // 🔥 Figure out nextTicketEnable:
-    const activeTicketKeys = processedTickets
-      .filter(t => t.status === "Start" || t.asap === true)
-      .map(t => t.ticketKey);
-
-    let nextTicketEnable = null;
-
-    if (activeTicketKeys.length > 0) {
-      const nextTicket = await NetflixTicket.findOne({
-        ...query,
-        ticketKey: { $nin: activeTicketKeys },
-        status: { $ne: "Closed" }
-      })
-        .sort({ updated: -1 })
-        .select("ticketKey");
-
-      if (nextTicket) {
-        nextTicketEnable = nextTicket.ticketKey;
+    // 🔥 CRITICAL: Enable only first ticket on first page, disable all others
+    if (parseInt(page) === 1 && processedTickets.length > 0) {
+      // Enable only the first ticket
+      processedTickets[0].state = "enable";
+      
+      // Disable all other tickets on page 1
+      for (let i = 1; i < processedTickets.length; i++) {
+        processedTickets[i].state = "disable";
       }
+    } else {
+      // For all other pages (page 2, 3, etc.), disable ALL tickets
+      processedTickets.forEach(ticket => {
+        ticket.state = "disable";
+      });
+    }
+
+    // 🔥 Optimized nextTicketEnable query - Only enable if we're on page 1 and first ticket is enabled
+    let nextTicketEnable = null;
+    if (parseInt(page) === 1 && processedTickets.length > 0 && processedTickets[0].state === "enable") {
+      // Find the next available ticket (the second ticket in the sorted list)
+      const nextTicket = await NetflixTicket.findOne(
+        { 
+          ...query, 
+          status: { $ne: "Closed" },
+          $and: [
+            { status: { $ne: "Start" } },
+            { asap: { $ne: true } }
+          ]
+        },
+        { ticketKey: 1, _id: 0 }
+      )
+      .sort({ priorityOrder: 1, updated: -1 })
+      .skip(1) // Skip the first ticket (which is enabled)
+      .limit(1)
+      .lean();
+
+      nextTicketEnable = nextTicket?.ticketKey || null;
     }
 
     res.status(200).json({
       success: true,
-      count: paginatedTickets.length,
-      total: processedTickets.length,
-      totalPages: Math.ceil(processedTickets.length / limit),
+      count: processedTickets.length,
+      total: total,
+      totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
-      data: paginatedTickets,
+      hasNextPage: parseInt(page) < Math.ceil(total / limit),
+      data: processedTickets,
       userType: user.role === 1 ? "CM" : "QM",
       metrics: statusCounts,
       nextTicketEnable
@@ -1116,7 +1005,6 @@ exports.getNetflixTickets = async (req, res) => {
     res.status(500).json({ success: false, error: "Internal server error" });
   }
 };
-
 
 
 exports.updateTicketByKey_DB = async (req, res) => {

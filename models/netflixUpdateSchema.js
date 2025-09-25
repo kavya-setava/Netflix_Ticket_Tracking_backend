@@ -88,6 +88,10 @@ const NetflixTicketsSchema = new Schema({
   asap:{
     type:Boolean,
     default:false
+  },
+  enabe:{
+     type:Boolean,
+    default:true
   }
 });
 
@@ -120,6 +124,30 @@ NetflixTicketsSchema.index({ status: 1, updated: -1 }); // Compound index
 NetflixTicketsSchema.index({ backupCM_email: 1 });
 NetflixTicketsSchema.index({ CM_email: 1, backupCM_email: 1 }); // Compound index
 NetflixTicketsSchema.index({ backupCM_email: 1, updated: -1 }); // Compound index
+// Add these compound indexes to significantly improve query performance
+NetflixTicketsSchema.index({ 
+  status: 1, 
+  asap: 1, 
+  updated: -1 
+});
 
+NetflixTicketsSchema.index({ 
+  backupCM_email: 1, 
+  status: 1, 
+  updated: -1 
+});
+
+NetflixTicketsSchema.index({ 
+  CM_email: 1, 
+  status: 1, 
+  updated: -1 
+});
+
+// For region-based queries
+NetflixTicketsSchema.index({ 
+  cm_region: 1, 
+  status: 1, 
+  updated: -1 
+});
 const NetflixTicket = mongoose.models.NetflixTicket || mongoose.model('NetflixTicket', NetflixTicketsSchema);
 module.exports = NetflixTicket;
