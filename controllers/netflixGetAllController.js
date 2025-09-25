@@ -537,7 +537,7 @@ exports.getNetflixTickets = async (req, res) => {
 
     // Fetch tickets with optimized selection
     const tickets = await NetflixTicket.find(query)
-      .select('ticketID ticketKey CM_name CM_email backupCM_email AM_name cm_region status startDateTime endDateTime updateddate pauseTime taskType subTaskType created updated')
+      .select('ticketID ticketKey CM_name CM_email backupCM_email AM_name cm_region status startDateTime endDateTime updateddate pauseTime taskType subTaskType created updated asap')
       .sort({ updated: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
@@ -568,7 +568,7 @@ exports.getNetflixTickets = async (req, res) => {
 exports.updateTicketByKey_DB = async (req, res) => {
   try {
     const { ticketKey } = req.params;
-    const { status, startTime, endTime, SLA } = req.body;
+    const { status, startTime, endTime, SLA, asap } = req.body;
 
     console.log("🔄 Updating ticket in DB:", ticketKey);
 
@@ -578,7 +578,7 @@ exports.updateTicketByKey_DB = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
-    if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined) {
+    if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined && asap === undefined) {
       return res.status(400).json({ success: false, error: 'No fields to update' });
     }
 
@@ -587,6 +587,7 @@ exports.updateTicketByKey_DB = async (req, res) => {
       startTime: startTime ?? existingTicket.startTime,
       endTime: endTime ?? existingTicket.endTime,
       SLA: SLA ?? existingTicket.SLA,
+      asap : asap ?? existingTicket.asap,
       updateddate: new Date()
     };
 
