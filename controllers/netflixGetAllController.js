@@ -1125,8 +1125,6 @@ exports.updateTicketByKey_DB = async (req, res) => {
     const { status, startTime, endTime, SLA ,asap} = req.body;
 
     console.log("🔄 Updating ticket in DB:", ticketKey);
-    console.log('...........',req.body);
-    
 
     const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() });
 
@@ -1134,8 +1132,8 @@ exports.updateTicketByKey_DB = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
-      if ([status, startTime, endTime, SLA, asap].every(field => field === undefined)) {
-      return res.status(400).json({ success: false, error: "No fields to update" });
+    if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined,  asap === undefined) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
     }
     
     
