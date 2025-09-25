@@ -410,6 +410,7 @@ const columnMap = {
         endDateTime: row[columnMap.endDateTime],
         taskType: row[columnMap.taskType],
         subTaskType: row[columnMap.subTaskType],  
+        enable: true
 
       };
 
