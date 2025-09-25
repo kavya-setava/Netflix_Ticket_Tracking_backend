@@ -331,7 +331,7 @@ const calculateCurrentUtilizationTimer = (ticket) =>{
     return secondsToHMS(runningSeconds+totalSeconds)
   }
 
-  if(["Interim", "Solution Provided", "Need More Information", "Send To VAO", "Closed", "Assigned"].includes(ticket.status)){
+  if(["Interim", "Solution Provided", "Need More Information", "Sent to VAO", "Closed", "Assigned"].includes(ticket.status)){
     return ticket.totalDuration || "00:00:00";
   }
 
