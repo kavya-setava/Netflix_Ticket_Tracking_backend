@@ -369,7 +369,7 @@ const columnMap = {
   startDateTime: normalizedHeaders.indexOf('Start Date'),
   endDateTime: normalizedHeaders.indexOf('End Date'),
   taskType: normalizedHeaders.indexOf('Task Type'),
-  subTaskType: normalizedHeaders.indexOf('Sub Task Type') // 👈 Added
+  subTaskType: normalizedHeaders.indexOf('Sub Task Type'), // 👈 Added
 
 };
 
@@ -409,6 +409,8 @@ const columnMap = {
         endDateTime: row[columnMap.endDateTime],
         taskType: row[columnMap.taskType],
         subTaskType: row[columnMap.subTaskType],  
+        enable: row[columnMap.status] === "Assigned" ? true : false
+
 
       };
 
