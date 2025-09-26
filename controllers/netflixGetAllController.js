@@ -565,6 +565,8 @@ exports.getNetflixTickets = async (req, res) => {
 
 
 
+
+
 // exports.updateTicketByKey_DB = async (req, res) => {
 //   try {
 //     const { ticketKey } = req.params;
@@ -572,8 +574,7 @@ exports.getNetflixTickets = async (req, res) => {
 
 //     console.log("🔄 Updating ticket in DB:", ticketKey);
 
-//     const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() });
-
+//     const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() }).lean();
 //     if (!existingTicket) {
 //       return res.status(404).json({ success: false, error: 'Ticket not found' });
 //     }
@@ -595,107 +596,125 @@ exports.getNetflixTickets = async (req, res) => {
 //       { ticketKey: ticketKey.trim() },
 //       { $set: updateData },
 //       { new: true, runValidators: true }
-//     );
+//     ).lean();
 
 //     // === ENABLE/DISABLE LOGIC ===
+//     const bulkOps = [];
 
 //     if (updateData.status === "Start") {
-//       // Rule 1: Start → enable current, disable others
-//       await NetflixTicket.updateMany(
-//         { ticketKey: { $ne: ticketKey.trim() } },
-//         { $set: { enable: false } }
-//       );
-//       await NetflixTicket.updateOne(
-//         { ticketKey: ticketKey.trim() },
-//         { $set: { enable: true } }
-//       );
-
+//       bulkOps.push({
+//         updateMany: {
+//           filter: { ticketKey: { $ne: ticketKey.trim() } },
+//           update: { $set: { enable: false } }
+//         }
+//       });
+//       bulkOps.push({
+//         updateOne: {
+//           filter: { ticketKey: ticketKey.trim() },
+//           update: { $set: { enable: true } }
+//         }
+//       });
 //     } else if (updateData.status === "Assigned") {
-//       // Rule: Assigned → enable only tickets with status "Assigned"
-//       await NetflixTicket.updateMany(
-//         { status: "Assigned" },
-//         { $set: { enable: true } }
-//       );
-//       await NetflixTicket.updateMany(
-//         { status: { $ne: "Assigned" } },
-//         { $set: { enable: false } }
-//       );
-
-//     } else if (updateData.status !== "Start" && updateData.status !== "On Hold") {
-//       if (updateData.asap === false) {
-//         // Rule 2: Started ticket changed → enable only assigned tickets
-//         await NetflixTicket.updateMany(
-//           { status: "Assigned" },
-//           { $set: { enable: true } }
-//         );
-//         await NetflixTicket.updateMany(
-//           { status: { $ne: "Assigned" } },
-//           { $set: { enable: false } }
-//         );
-//         await NetflixTicket.updateOne(
-//           { ticketKey: ticketKey.trim() },
-//           { $set: { enable: false } }
-//         );
-//       } else {
-//         // Fallback → current false, assigned tickets true
-//         await NetflixTicket.updateOne(
-//           { ticketKey: ticketKey.trim() },
-//           { $set: { enable: false } }
-//         );
-//         await NetflixTicket.updateMany(
-//           { status: "Assigned" },
-//           { $set: { enable: true } }
-//         );
-//         await NetflixTicket.updateMany(
-//           { status: { $ne: "Assigned" } },
-//           { $set: { enable: false } }
-//         );
-//       }
-
+//       bulkOps.push({
+//         updateMany: {
+//           filter: { status: "Assigned" },
+//           update: { $set: { enable: true } }
+//         }
+//       });
+//       bulkOps.push({
+//         updateMany: {
+//           filter: { status: { $ne: "Assigned" } },
+//           update: { $set: { enable: false } }
+//         }
+//       });
 //     } else if (updateData.status === "On Hold") {
-//       // Rule 3: Started ticket → On Hold
 //       const hasAsapTickets = await NetflixTicket.exists({ asap: true });
-
 //       if (hasAsapTickets) {
-//         // Enable ASAP tickets
-//         await NetflixTicket.updateMany({ asap: true }, { $set: { enable: true } });
-//         // Enable the On Hold ticket
-//         await NetflixTicket.updateOne(
-//           { ticketKey: ticketKey.trim() },
-//           { $set: { enable: true } }
-//         );
+//         bulkOps.push({
+//           updateMany: {
+//             filter: { asap: true },
+//             update: { $set: { enable: true } }
+//           }
+//         });
+//         bulkOps.push({
+//           updateOne: {
+//             filter: { ticketKey: ticketKey.trim() },
+//             update: { $set: { enable: true } }
+//           }
+//         });
+//       }
+//     } else {
+//       if (updateData.asap === false) {
+//         bulkOps.push({
+//           updateMany: {
+//             filter: { status: "Assigned" },
+//             update: { $set: { enable: true } }
+//           }
+//         });
+//         bulkOps.push({
+//           updateMany: {
+//             filter: { status: { $ne: "Assigned" } },
+//             update: { $set: { enable: false } }
+//           }
+//         });
+//         bulkOps.push({
+//           updateOne: {
+//             filter: { ticketKey: ticketKey.trim() },
+//             update: { $set: { enable: false } }
+//           }
+//         });
 //       } else {
-//         console.log("No ASAP tickets found — keeping enable states unchanged.");
+//         bulkOps.push({
+//           updateOne: {
+//             filter: { ticketKey: ticketKey.trim() },
+//             update: { $set: { enable: false } }
+//           }
+//         });
+//         bulkOps.push({
+//           updateMany: {
+//             filter: { status: "Assigned" },
+//             update: { $set: { enable: true } }
+//           }
+//         });
+//         bulkOps.push({
+//           updateMany: {
+//             filter: { status: { $ne: "Assigned" } },
+//             update: { $set: { enable: false } }
+//           }
+//         });
 //       }
 //     }
 
-//     // === Rule 4: If no asap:true tickets are Start or Assigned → enable only assigned tickets ===
+//     // Rule 4 check
 //     const asapActiveTicketsExist = await NetflixTicket.exists({
 //       asap: true,
 //       status: { $in: ["Start", "Assigned"] }
 //     });
 
 //     if (!asapActiveTicketsExist) {
-//       console.log("✅ No asap:true tickets with status 'Start' or 'Assigned' → enabling only assigned tickets");
-//       await NetflixTicket.updateMany(
-//         { status: "Assigned" },
-//         { $set: { enable: true } }
-//       );
-//       await NetflixTicket.updateMany(
-//         { status: { $ne: "Assigned" } },
-//         { $set: { enable: false } }
-//       );
+//       bulkOps.push({
+//         updateMany: {
+//           filter: { status: "Assigned" },
+//           update: { $set: { enable: true } }
+//         }
+//       });
+//       bulkOps.push({
+//         updateMany: {
+//           filter: { status: { $ne: "Assigned" } },
+//           update: { $set: { enable: false } }
+//         }
+//       });
 //     }
 
-//     res.status(200).json({
+//     if (bulkOps.length) await NetflixTicket.bulkWrite(bulkOps);
+
+//     return res.status(200).json({
 //       success: true,
-//       message: 'Ticket updated successfully in DB',
+//       message: 'Ticket updated successfully',
 //       data: updatedTicket
 //     });
-
 //   } catch (error) {
 //     console.error('⛔ DB update error:', error);
-
 //     if (error.name === 'ValidationError') {
 //       const details = {};
 //       for (let key in error.errors) {
@@ -703,10 +722,10 @@ exports.getNetflixTickets = async (req, res) => {
 //       }
 //       return res.status(400).json({ success: false, error: 'Validation failed', details });
 //     }
-
 //     res.status(500).json({ success: false, error: 'Internal server error' });
 //   }
 // };
+
 
 
 exports.updateTicketByKey_DB = async (req, res) => {
@@ -716,8 +735,7 @@ exports.updateTicketByKey_DB = async (req, res) => {
 
     console.log("🔄 Updating ticket in DB:", ticketKey);
 
-    const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() });
-
+    const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() }).lean();
     if (!existingTicket) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
@@ -745,127 +763,133 @@ exports.updateTicketByKey_DB = async (req, res) => {
       { ticketKey: ticketKey.trim() },
       { $set: updateData },
       { new: true, runValidators: true }
-    );
+    ).lean();
 
     // === ENABLE/DISABLE LOGIC ===
+    const bulkOps = [];
 
-    // 1. START ticket → highest priority
+    // Check if there are any ASAP tickets active (Start or Assigned)
+    const hasAsapTickets = await NetflixTicket.exists({
+      asap: true,
+      status: { $in: ["Start", "Assigned"] }
+    });
+
+    // RULE 1: Start ticket → disable all others
     if (updateData.status === "Start") {
-      await NetflixTicket.updateMany(
-        { ticketKey: { $ne: ticketKey.trim() } },
-        { $set: { enable: false } }
-      );
-      await NetflixTicket.updateOne(
-        { ticketKey: ticketKey.trim() },
-        { $set: { enable: true } }
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: 'Ticket started successfully',
-        data: updatedTicket
+      bulkOps.push({
+        updateMany: {
+          filter: { ticketKey: { $ne: ticketKey.trim() } },
+          update: { $set: { enable: false } }
+        }
+      });
+      bulkOps.push({
+        updateOne: {
+          filter: { ticketKey: ticketKey.trim() },
+          update: { $set: { enable: true } }
+        }
       });
     }
-
-    // 2. ASSIGNED tickets
-    if (updateData.status === "Assigned") {
-      await NetflixTicket.updateMany(
-        { status: "Assigned" },
-        { $set: { enable: true } }
-      );
-      await NetflixTicket.updateMany(
-        { status: { $ne: "Assigned" } },
-        { $set: { enable: false } }
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: 'Assigned tickets updated successfully',
-        data: updatedTicket
+    // RULE 2: Assigned tickets → enable only assigned tickets
+    else if (updateData.status === "Assigned") {
+      bulkOps.push({
+        updateMany: {
+          filter: { status: "Assigned" },
+          update: { $set: { enable: true } }
+        }
+      });
+      bulkOps.push({
+        updateMany: {
+          filter: { status: { $ne: "Assigned" } },
+          update: { $set: { enable: false } }
+        }
       });
     }
-
-    // 3. ON HOLD tickets
-    if (updateData.status === "On Hold") {
-      const hasAsapTickets = await NetflixTicket.exists({ asap: true });
-
+    // RULE 3: On Hold
+    else if (updateData.status === "On Hold") {
       if (hasAsapTickets) {
-        // Enable ASAP tickets + current On Hold ticket
-        await NetflixTicket.updateMany(
-          { asap: true },
-          { $set: { enable: true } }
-        );
-        await NetflixTicket.updateOne(
-          { ticketKey: ticketKey.trim() },
-          { $set: { enable: true } }
-        );
+        bulkOps.push({
+          updateMany: {
+            filter: { asap: true },
+            update: { $set: { enable: true } }
+          }
+        });
+        bulkOps.push({
+          updateOne: {
+            filter: { ticketKey: ticketKey.trim() },
+            update: { $set: { enable: true } }
+          }
+        });
       }
-
-      return res.status(200).json({
-        success: true,
-        message: 'On Hold ticket updated successfully',
-        data: updatedTicket
-      });
     }
-
-    // 4. Other status changes (e.g., "Sent to VAO", "Closed", etc.)
-    if (updateData.status !== "Start" && updateData.status !== "On Hold") {
-      if (updateData.asap === false) {
-        // Enable only Assigned tickets, current ticket disabled
-        await NetflixTicket.updateMany(
-          { status: "Assigned" },
-          { $set: { enable: true } }
-        );
-        await NetflixTicket.updateMany(
-          { status: { $ne: "Assigned" } },
-          { $set: { enable: false } }
-        );
-        await NetflixTicket.updateOne(
-          { ticketKey: ticketKey.trim() },
-          { $set: { enable: false } }
-        );
+    // RULE 4: All other status changes
+    else {
+      if (hasAsapTickets) {
+        // If ASAP tickets exist → only enable ASAP tickets
+        bulkOps.push({
+          updateMany: {
+            filter: { asap: true },
+            update: { $set: { enable: true } }
+          }
+        });
+        bulkOps.push({
+          updateMany: {
+            filter: { asap: { $ne: true } },
+            update: { $set: { enable: false } }
+          }
+        });
+        bulkOps.push({
+          updateOne: {
+            filter: { ticketKey: ticketKey.trim() },
+            update: { $set: { enable: false } }
+          }
+        });
       } else {
-        // fallback → assigned tickets enabled, current disabled
-        await NetflixTicket.updateOne(
-          { ticketKey: ticketKey.trim() },
-          { $set: { enable: false } }
-        );
-        await NetflixTicket.updateMany(
-          { status: "Assigned" },
-          { $set: { enable: true } }
-        );
-        await NetflixTicket.updateMany(
-          { status: { $ne: "Assigned" } },
-          { $set: { enable: false } }
-        );
+        // No ASAP tickets → enable assigned tickets only
+        bulkOps.push({
+          updateMany: {
+            filter: { status: "Assigned" },
+            update: { $set: { enable: true } }
+          }
+        });
+        bulkOps.push({
+          updateMany: {
+            filter: { status: { $ne: "Assigned" } },
+            update: { $set: { enable: false } }
+          }
+        });
       }
     }
 
-    // 5. Rule 4 → No ASAP Start or Assigned → enable only assigned tickets
+    // RULE 5: If no ASAP Start/Assigned tickets remain → enable assigned tickets
     const asapActiveTicketsExist = await NetflixTicket.exists({
       asap: true,
       status: { $in: ["Start", "Assigned"] }
     });
 
     if (!asapActiveTicketsExist) {
-      await NetflixTicket.updateMany(
-        { status: "Assigned" },
-        { $set: { enable: true } }
-      );
-      await NetflixTicket.updateMany(
-        { status: { $ne: "Assigned" } },
-        { $set: { enable: false } }
-      );
+      bulkOps.push({
+        updateMany: {
+          filter: { status: "Assigned" },
+          update: { $set: { enable: true } }
+        }
+      });
+      bulkOps.push({
+        updateMany: {
+          filter: { status: { $ne: "Assigned" } },
+          update: { $set: { enable: false } }
+        }
+      });
     }
 
-    res.status(200).json({
+    if (bulkOps.length) await NetflixTicket.bulkWrite(bulkOps);
+
+    return res.status(200).json({
       success: true,
       message: 'Ticket updated successfully',
       data: updatedTicket
     });
   } catch (error) {
     console.error('⛔ DB update error:', error);
-
     if (error.name === 'ValidationError') {
       const details = {};
       for (let key in error.errors) {
@@ -873,11 +897,9 @@ exports.updateTicketByKey_DB = async (req, res) => {
       }
       return res.status(400).json({ success: false, error: 'Validation failed', details });
     }
-
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
-
 
 
 

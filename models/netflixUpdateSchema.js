@@ -121,6 +121,9 @@ NetflixTicketsSchema.index({ status: 1, updated: -1 }); // Compound index
 NetflixTicketsSchema.index({ backupCM_email: 1 });
 NetflixTicketsSchema.index({ CM_email: 1, backupCM_email: 1 }); // Compound index
 NetflixTicketsSchema.index({ backupCM_email: 1, updated: -1 }); // Compound index
+NetflixTicketsSchema.index({ asap: 1 });                      // Fast filtering by asap
+NetflixTicketsSchema.index({ status: 1, asap: 1 });           // Compound index for combined filtering
+
 
 const NetflixTicket = mongoose.models.NetflixTicket || mongoose.model('NetflixTicket', NetflixTicketsSchema);
 module.exports = NetflixTicket;
