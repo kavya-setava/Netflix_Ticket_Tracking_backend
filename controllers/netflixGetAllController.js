@@ -587,7 +587,7 @@ exports.updateTicketByKey_DB = async (req, res) => {
       startTime: startTime ?? existingTicket.startTime,
       endTime: endTime ?? existingTicket.endTime,
       SLA: SLA ?? existingTicket.SLA,
-      asap : asap ?? existingTicket.asap,
+      asap: asap ?? existingTicket.asap,
       updateddate: new Date()
     };
 
@@ -596,6 +596,96 @@ exports.updateTicketByKey_DB = async (req, res) => {
       { $set: updateData },
       { new: true, runValidators: true }
     );
+
+    // === ENABLE/DISABLE LOGIC ===
+
+    if (updateData.status === "Start") {
+      // Rule 1: Start → enable current, disable others
+      await NetflixTicket.updateMany(
+        { ticketKey: { $ne: ticketKey.trim() } },
+        { $set: { enable: false } }
+      );
+      await NetflixTicket.updateOne(
+        { ticketKey: ticketKey.trim() },
+        { $set: { enable: true } }
+      );
+
+    } else if (updateData.status === "Assigned") {
+      // Rule: Assigned → enable only tickets with status "Assigned"
+      await NetflixTicket.updateMany(
+        { status: "Assigned" },
+        { $set: { enable: true } }
+      );
+      await NetflixTicket.updateMany(
+        { status: { $ne: "Assigned" } },
+        { $set: { enable: false } }
+      );
+
+    } else if (updateData.status !== "Start" && updateData.status !== "On Hold") {
+      if (updateData.asap === false) {
+        // Rule 2: Started ticket changed → enable only assigned tickets
+        await NetflixTicket.updateMany(
+          { status: "Assigned" },
+          { $set: { enable: true } }
+        );
+        await NetflixTicket.updateMany(
+          { status: { $ne: "Assigned" } },
+          { $set: { enable: false } }
+        );
+        await NetflixTicket.updateOne(
+          { ticketKey: ticketKey.trim() },
+          { $set: { enable: false } }
+        );
+      } else {
+        // Fallback → current false, assigned tickets true
+        await NetflixTicket.updateOne(
+          { ticketKey: ticketKey.trim() },
+          { $set: { enable: false } }
+        );
+        await NetflixTicket.updateMany(
+          { status: "Assigned" },
+          { $set: { enable: true } }
+        );
+        await NetflixTicket.updateMany(
+          { status: { $ne: "Assigned" } },
+          { $set: { enable: false } }
+        );
+      }
+
+    } else if (updateData.status === "On Hold") {
+      // Rule 3: Started ticket → On Hold
+      const hasAsapTickets = await NetflixTicket.exists({ asap: true });
+
+      if (hasAsapTickets) {
+        // Enable ASAP tickets
+        await NetflixTicket.updateMany({ asap: true }, { $set: { enable: true } });
+        // Enable the On Hold ticket
+        await NetflixTicket.updateOne(
+          { ticketKey: ticketKey.trim() },
+          { $set: { enable: true } }
+        );
+      } else {
+        console.log("No ASAP tickets found — keeping enable states unchanged.");
+      }
+    }
+
+    // === Rule 4: If no asap:true tickets are Start or Assigned → enable only assigned tickets ===
+    const asapActiveTicketsExist = await NetflixTicket.exists({
+      asap: true,
+      status: { $in: ["Start", "Assigned"] }
+    });
+
+    if (!asapActiveTicketsExist) {
+      console.log("✅ No asap:true tickets with status 'Start' or 'Assigned' → enabling only assigned tickets");
+      await NetflixTicket.updateMany(
+        { status: "Assigned" },
+        { $set: { enable: true } }
+      );
+      await NetflixTicket.updateMany(
+        { status: { $ne: "Assigned" } },
+        { $set: { enable: false } }
+      );
+    }
 
     res.status(200).json({
       success: true,
@@ -617,6 +707,258 @@ exports.updateTicketByKey_DB = async (req, res) => {
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
+
+
+
+// exports.updateTicketByKey_DB = async (req, res) => {
+//   try {
+//     const { ticketKey } = req.params;
+//     const { status, startTime, endTime, SLA, asap } = req.body;
+
+//     console.log("🔄 Updating ticket in DB:", ticketKey);
+
+//     const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() });
+
+//     if (!existingTicket) {
+//       return res.status(404).json({ success: false, error: 'Ticket not found' });
+//     }
+
+//     if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined && asap === undefined) {
+//       return res.status(400).json({ success: false, error: 'No fields to update' });
+//     }
+
+//     // --- build update object ---
+//     const updateData = {
+//       status: status ?? existingTicket.status,
+//       startTime: startTime ?? existingTicket.startTime,
+//       endTime: endTime ?? existingTicket.endTime,
+//       SLA: SLA ?? existingTicket.SLA,
+//       asap: asap ?? existingTicket.asap,
+//       updateddate: new Date()
+//     };
+
+//     // --- Update ticket itself ---
+//     const updatedTicket = await NetflixTicket.findOneAndUpdate(
+//       { ticketKey: ticketKey.trim() },
+//       { $set: updateData },
+//       { new: true, runValidators: true }
+//     );
+
+//     // --- Apply enable/disable logic ---
+//     if (updateData.status === "Start") {
+//       // 1️⃣ Current ticket enable:true, all others false
+//       await NetflixTicket.updateMany(
+//         { ticketKey: { $ne: ticketKey.trim() } },
+//         { $set: { enable: false } }
+//       );
+//       await NetflixTicket.updateOne(
+//         { ticketKey: ticketKey.trim() },
+//         { $set: { enable: true } }
+//       );
+
+//     } else if (updateData.status !== "Start" && updateData.status !== "On Hold") {
+//       if (updateData.asap === false) {
+//         // 2️⃣ Requirement: started ticket changed → all enable true, current false
+//         await NetflixTicket.updateMany({}, { $set: { enable: true } });
+//         await NetflixTicket.updateOne(
+//           { ticketKey: ticketKey.trim() },
+//           { $set: { enable: false } }
+//         );
+//       } else {
+//         // 3️⃣ Fallback case → current false, rest true
+//         await NetflixTicket.updateOne(
+//           { ticketKey: ticketKey.trim() },
+//           { $set: { enable: false } }
+//         );
+//         await NetflixTicket.updateMany(
+//           { ticketKey: { $ne: ticketKey.trim() } },
+//           { $set: { enable: true } }
+//         );
+//       }
+//     }
+//     // If status === "On Hold" → do nothing
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Ticket updated successfully in DB',
+//       data: updatedTicket
+//     });
+
+//   } catch (error) {
+//     console.error('⛔ DB update error:', error);
+
+//     if (error.name === 'ValidationError') {
+//       const details = {};
+//       for (let key in error.errors) {
+//         details[key] = error.errors[key].message;
+//       }
+//       return res.status(400).json({ success: false, error: 'Validation failed', details });
+//     }
+
+//     res.status(500).json({ success: false, error: 'Internal server error' });
+//   }
+// };
+
+
+
+// exports.updateTicketByKey_DB = async (req, res) => {
+//   try {
+//     const { ticketKey } = req.params;
+//     const { status, startTime, endTime, SLA, asap } = req.body;
+
+//     console.log("🔄 Updating ticket in DB:", ticketKey);
+
+//     const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() });
+
+//     if (!existingTicket) {
+//       return res.status(404).json({ success: false, error: 'Ticket not found' });
+//     }
+
+//     if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined && asap === undefined) {
+//       return res.status(400).json({ success: false, error: 'No fields to update' });
+//     }
+
+//     const updateData = {
+//       status: status ?? existingTicket.status,
+//       startTime: startTime ?? existingTicket.startTime,
+//       endTime: endTime ?? existingTicket.endTime,
+//       SLA: SLA ?? existingTicket.SLA,
+//       asap: asap ?? existingTicket.asap,
+//       updateddate: new Date()
+//     };
+
+//     const updatedTicket = await NetflixTicket.findOneAndUpdate(
+//       { ticketKey: ticketKey.trim() },
+//       { $set: updateData },
+//       { new: true, runValidators: true }
+//     );
+
+//     // === ENABLE/DISABLE LOGIC ===
+
+//     if (updateData.status === "Start") {
+//       // Rule 1: Start → enable current, disable others
+//       await NetflixTicket.updateMany(
+//         { ticketKey: { $ne: ticketKey.trim() } },
+//         { $set: { enable: false } }
+//       );
+//       await NetflixTicket.updateOne(
+//         { ticketKey: ticketKey.trim() },
+//         { $set: { enable: true } }
+//       );
+
+//     } else if (updateData.status !== "Start" && updateData.status !== "On Hold") {
+//       if (updateData.asap === false) {
+//         // Rule 2: Started ticket changed → all enable true, current false
+//         await NetflixTicket.updateMany({}, { $set: { enable: true } });
+//         await NetflixTicket.updateOne(
+//           { ticketKey: ticketKey.trim() },
+//           { $set: { enable: false } }
+//         );
+//       } else {
+//         // Fallback
+//         await NetflixTicket.updateOne(
+//           { ticketKey: ticketKey.trim() },
+//           { $set: { enable: false } }
+//         );
+//         await NetflixTicket.updateMany(
+//           { ticketKey: { $ne: ticketKey.trim() } },
+//           { $set: { enable: true } }
+//         );
+//       }
+//     } else if (updateData.status === "On Hold") {
+//       // Rule 3: Started ticket → On Hold
+//       const hasAsapTickets = await NetflixTicket.exists({ asap: true });
+
+//       if (hasAsapTickets) {
+//         // Enable ASAP tickets
+//         await NetflixTicket.updateMany({ asap: true }, { $set: { enable: true } });
+//         // Enable the On Hold ticket
+//         await NetflixTicket.updateOne(
+//           { ticketKey: ticketKey.trim() },
+//           { $set: { enable: true } }
+//         );
+//       } else {
+//         // No ASAP tickets → no change in enable states
+//         console.log("No ASAP tickets found — keeping enable states unchanged.");
+//       }
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Ticket updated successfully in DB',
+//       data: updatedTicket
+//     });
+
+//   } catch (error) {
+//     console.error('⛔ DB update error:', error);
+
+//     if (error.name === 'ValidationError') {
+//       const details = {};
+//       for (let key in error.errors) {
+//         details[key] = error.errors[key].message;
+//       }
+//       return res.status(400).json({ success: false, error: 'Validation failed', details });
+//     }
+
+//     res.status(500).json({ success: false, error: 'Internal server error' });
+//   }
+// };
+
+
+
+
+// exports.updateTicketByKey_DB = async (req, res) => {
+//   try {
+//     const { ticketKey } = req.params;
+//     const { status, startTime, endTime, SLA, asap } = req.body;
+
+//     console.log("🔄 Updating ticket in DB:", ticketKey);
+
+//     const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() });
+
+//     if (!existingTicket) {
+//       return res.status(404).json({ success: false, error: 'Ticket not found' });
+//     }
+
+//     if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined && asap === undefined) {
+//       return res.status(400).json({ success: false, error: 'No fields to update' });
+//     }
+
+//     const updateData = {
+//       status: status ?? existingTicket.status,
+//       startTime: startTime ?? existingTicket.startTime,
+//       endTime: endTime ?? existingTicket.endTime,
+//       SLA: SLA ?? existingTicket.SLA,
+//       asap : asap ?? existingTicket.asap,
+//       updateddate: new Date()
+//     };
+
+//     const updatedTicket = await NetflixTicket.findOneAndUpdate(
+//       { ticketKey: ticketKey.trim() },
+//       { $set: updateData },
+//       { new: true, runValidators: true }
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Ticket updated successfully in DB',
+//       data: updatedTicket
+//     });
+
+//   } catch (error) {
+//     console.error('⛔ DB update error:', error);
+
+//     if (error.name === 'ValidationError') {
+//       const details = {};
+//       for (let key in error.errors) {
+//         details[key] = error.errors[key].message;
+//       }
+//       return res.status(400).json({ success: false, error: 'Validation failed', details });
+//     }
+
+//     res.status(500).json({ success: false, error: 'Internal server error' });
+//   }
+// };
 
 
 
