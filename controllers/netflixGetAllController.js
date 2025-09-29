@@ -538,7 +538,7 @@ exports.getNetflixTickets = async (req, res) => {
     // Fetch tickets with optimized selection
     const tickets = await NetflixTicket.find(query)
       .select('ticketID ticketKey CM_name CM_email backupCM_email AM_name cm_region status startDateTime endDateTime updateddate pauseTime taskType subTaskType created updated asap enable')
-      .sort({ enable: -1, updated: -1 })
+      .sort({ enable: -1, asap: -1, updated: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .lean();
