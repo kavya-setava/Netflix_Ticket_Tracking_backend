@@ -4,8 +4,7 @@
 // const mongoose = require('mongoose');
 // const CM = require('../models/cmSchema');
 
-
-// cm data 
+// cm data
 
 // async function processCSV() {
 //   // Connect to MongoDB
@@ -18,7 +17,7 @@
 //   const results = [];
 //   const downloadsPath = path.join(require('os').homedir(), 'Downloads');
 //   const csvFilePath = path.join(downloadsPath, 'Netflix Ticketing System  - cmdata.csv');
-  
+
 //   // Read CSV file
 //   fs.createReadStream(csvFilePath)
 //     .pipe(csv({
@@ -42,11 +41,11 @@
 //             region: item.region,
 //             role: parseInt(item.role) || 0 // Default to 0 if role is not provided
 //           });
-          
+
 //           await cm.save();
 //           console.log(`Saved: ${cm.name} with CMID: ${cm.cmid}`);
 //         }
-        
+
 //         console.log('All data processed successfully');
 //         await mongoose.connection.close();
 //       } catch (err) {
@@ -59,9 +58,7 @@
 // // Run the processing
 // processCSV().catch(err => console.error('Error in processCSV:', err));
 
-
 // QM data
-
 
 // const fs = require('fs');
 // const csv = require('csv-parser');
@@ -109,7 +106,7 @@
 //         region: item.region,
 //         role: item.role // Include role in the document
 //       });
-      
+
 //       await qm.save();
 //       console.log(`Saved: ${qm.name} with QMID: ${qm.qmid} and Role: ${qm.role}`);
 //     }
@@ -125,11 +122,7 @@
 // // Run the import
 // importQMData();
 
-
-
 // ............................below code working fine  .........................................
-
-
 
 // const mongoose = require('mongoose');
 // const { google } = require('googleapis');
@@ -146,7 +139,7 @@
 // // Helper function to properly parse Excel dates
 // function parseExcelDate(dateString) {
 //   if (!dateString) return null;
-  
+
 //   // Split the date and time parts
 //   const [datePart, timePart] = dateString.split(' ');
 //   const [year, month, day] = datePart.split('-').map(Number);
@@ -167,7 +160,7 @@
 //       spreadsheetId: SPREADSHEET_ID,
 //       range: `${SHEET_NAME}!${RANGE}`,
 //     });
-    
+
 //     const [headers, ...rows] = response.data.values;
 //     return { headers, rows };
 //   } catch (error) {
@@ -182,7 +175,7 @@
 
 // async function migrateData() {
 //   const startTime = new Date();
-  
+
 //   try {
 //     // Connect to MongoDB
 //     console.log('⌛ Connecting to MongoDB...');
@@ -197,7 +190,7 @@
 //     // Get data from Google Sheet
 //     console.log('⌛ Fetching data from Google Sheet...');
 //     const { headers, rows } = await getSheetData();
-    
+
 //     if (!rows || rows.length === 0) {
 //       throw new Error('❌ No data found in the sheet');
 //     }
@@ -230,7 +223,7 @@
 //     const dbInsertStart = new Date();
 
 //     console.log('⏳ Starting data migration...');
-    
+
 //     for (let i = 0; i < rows.length; i++) {
 //       const row = rows[i];
 //       try {
@@ -247,7 +240,7 @@
 
 //         await NetflixTicket.create(ticketData);
 //         successCount++;
-        
+
 //         // Show progress every 10 records or for the last record
 //         if (successCount % 10 === 0 || i === rows.length - 1) {
 //           console.log(`🔄 Processed ${i+1}/${totalRows} records (${successCount} successful, ${errorCount} errors)`);
@@ -291,25 +284,25 @@
 
 // module.exports = { migrateData };
 
-
-const mongoose = require('mongoose');
-const { google } = require('googleapis');
-const NetflixTicket = require('../models/netflixUpdateSchema');
-const cron = require('node-cron');
+const mongoose = require("mongoose");
+const { google } = require("googleapis");
+const NetflixTicket = require("../models/netflixUpdateSchema");
+const cron = require("node-cron");
 
 // ================= Configuration =================
-const SPREADSHEET_ID = '1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4';
-const SHEET_NAME = 'Sheet1';
-const RANGE = 'A1:M';
-const mongoURI = 'mongodb+srv://mcube:123@cluster0.mvb09va.mongodb.net/netflix_db';
-const API_KEY = 'AIzaSyAd7mk5rSyABQQyr40r3gWMs0ZMuMWE_Hw';
+const SPREADSHEET_ID = "1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4";
+const SHEET_NAME = "Sheet1";
+const RANGE = "A1:M";
+const mongoURI =
+  "mongodb+srv://mcube:123@cluster0.mvb09va.mongodb.net/netflix_db";
+const API_KEY = "AIzaSyAd7mk5rSyABQQyr40r3gWMs0ZMuMWE_Hw";
 
 // ================= Helper Functions =================
 async function getSheetData() {
   try {
     const sheets = google.sheets({
-      version: 'v4',
-      auth: API_KEY
+      version: "v4",
+      auth: API_KEY,
     });
 
     const response = await sheets.spreadsheets.values.get({
@@ -320,10 +313,12 @@ async function getSheetData() {
     const [headers, ...rows] = response.data.values;
     return { headers, rows };
   } catch (error) {
-    console.error('Error reading Google Sheet:', error.message);
+    console.error("Error reading Google Sheet:", error.message);
     if (error.response && error.response.status === 403) {
-      console.error('\nERROR: The sheet is probably not public.');
-      console.error('Solution: Either make the sheet public or use service account credentials.');
+      console.error("\nERROR: The sheet is probably not public.");
+      console.error(
+        "Solution: Either make the sheet public or use service account credentials."
+      );
     }
     process.exit(1);
   }
@@ -335,45 +330,42 @@ async function migrateData() {
 
   try {
     // Connect to MongoDB
-    console.log('⌛ Connecting to MongoDB...');
+    console.log("⌛ Connecting to MongoDB...");
     await mongoose.connect(mongoURI);
-    console.log('✅ Connected to MongoDB');
+    console.log("✅ Connected to MongoDB");
 
     // Get data from Google Sheet
-    console.log('⌛ Fetching data from Google Sheet...');
+    console.log("⌛ Fetching data from Google Sheet...");
     const { headers, rows } = await getSheetData();
 
     if (!rows || rows.length === 0) {
-      throw new Error('❌ No data found in the sheet');
+      throw new Error("❌ No data found in the sheet");
     }
 
     console.log(`📊 Found ${rows.length} rows in Google Sheet`);
-const normalizedHeaders = headers.map(h => h.trim());
+    const normalizedHeaders = headers.map((h) => h.trim());
 
-// Debug print headers
-console.log("🔎 Headers from sheet:");
-normalizedHeaders.forEach((h, i) => console.log(`${i}: ${h}`));
+    // Debug print headers
+    console.log("🔎 Headers from sheet:");
+    normalizedHeaders.forEach((h, i) => console.log(`${i}: ${h}`));
     // Column mapping nor
-const columnMap = {
-  ticketKey: normalizedHeaders.indexOf('Issue key'),
-  created: normalizedHeaders.indexOf('Created'),
-  updated: normalizedHeaders.indexOf('Updated'),
-  AM_name: normalizedHeaders.indexOf('Reporter'),
-  CM_name: normalizedHeaders.indexOf('Assignee'),
-  CM_email: normalizedHeaders.indexOf('Assignee_mail_id'),
-  cm_region: normalizedHeaders.indexOf('Assignee_region'),
-  status: normalizedHeaders.indexOf('Status'),
+    const columnMap = {
+      ticketKey: normalizedHeaders.indexOf("Issue key"),
+      created: normalizedHeaders.indexOf("Created"),
+      updated: normalizedHeaders.indexOf("Updated"),
+      AM_name: normalizedHeaders.indexOf("Reporter"),
+      CM_name: normalizedHeaders.indexOf("Assignee"),
+      CM_email: normalizedHeaders.indexOf("Assignee_mail_id"),
+      cm_region: normalizedHeaders.indexOf("Assignee_region"),
+      status: normalizedHeaders.indexOf("Status"),
 
-  // New fields
-  backupCM_email: normalizedHeaders.indexOf('CM_mail_id'),
-  startDateTime: normalizedHeaders.indexOf('Start Date'),
-  endDateTime: normalizedHeaders.indexOf('End Date'),
-  taskType: normalizedHeaders.indexOf('Task Type'),
-  subTaskType: normalizedHeaders.indexOf('Sub Task Type'), // 👈 Added
-
-};
-
-
+      // New fields
+      backupCM_email: normalizedHeaders.indexOf("CM_mail_id"),
+      startDateTime: normalizedHeaders.indexOf("Start Date"),
+      endDateTime: normalizedHeaders.indexOf("End Date"),
+      taskType: normalizedHeaders.indexOf("Task Type"),
+      subTaskType: normalizedHeaders.indexOf("Sub Task Type"), // 👈 Added
+    };
 
     // Verify required columns
     for (const [field, index] of Object.entries(columnMap)) {
@@ -387,7 +379,7 @@ const columnMap = {
     let updateCount = 0;
     let skipCount = 0;
 
-    console.log('⏳ Starting migration (insert/update)...');
+    console.log("⏳ Starting migration (insert/update)...");
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
@@ -408,10 +400,8 @@ const columnMap = {
         startDateTime: row[columnMap.startDateTime],
         endDateTime: row[columnMap.endDateTime],
         taskType: row[columnMap.taskType],
-        subTaskType: row[columnMap.subTaskType],  
-        enable: row[columnMap.status] === "Assigned" ? true : false
-
-
+        subTaskType: row[columnMap.subTaskType],
+        enable: row[columnMap.status] === "Assigned" ? true : false,
       };
 
       try {
@@ -441,17 +431,19 @@ const columnMap = {
         // Progress log every 10 rows or at end
         if ((i + 1) % 10 === 0 || i === rows.length - 1) {
           console.log(
-            `🔄 Processed ${i + 1}/${rows.length} rows (Inserted: ${insertCount}, Updated: ${updateCount}, Skipped: ${skipCount})`
+            `🔄 Processed ${i + 1}/${
+              rows.length
+            } rows (Inserted: ${insertCount}, Updated: ${updateCount}, Skipped: ${skipCount})`
           );
         }
       } catch (err) {
         console.error(`❌ Error processing row ${i + 1}:`, err.message);
-        console.error('Row data:', row);
+        console.error("Row data:", row);
       }
     }
 
     // Final summary
-    console.log('\n✅ Migration Summary:');
+    console.log("\n✅ Migration Summary:");
     console.log(` ➕ Inserted: ${insertCount}`);
     console.log(` 🔄 Updated: ${updateCount}`);
     console.log(` ⏭️ Skipped (no changes): ${skipCount}`);
@@ -460,7 +452,7 @@ const columnMap = {
     const totalTime = (new Date() - startTime) / 1000;
     console.log(`\n⏱️ Total time: ${totalTime.toFixed(2)} seconds`);
   } catch (error) {
-    console.error('❌ Error during migration:', error);
+    console.error("❌ Error during migration:", error);
     process.exit(1);
   }
 }
