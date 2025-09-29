@@ -538,7 +538,7 @@ exports.getNetflixTickets = async (req, res) => {
     // Fetch tickets with optimized selection
     const tickets = await NetflixTicket.find(query)
       .select('ticketID ticketKey CM_name CM_email backupCM_email AM_name cm_region status startDateTime endDateTime updateddate pauseTime taskType subTaskType created updated asap enable')
-      .sort({ updated: -1 })
+      .sort({ enable: -1, updated: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .lean();
@@ -567,20 +567,28 @@ exports.getNetflixTickets = async (req, res) => {
 
 
 
+
+
+//  below code is working except when started ticket is on hold asap is true then onhold is disabled
+// after complition of asap tickets onhold and assigned all being  enabled 
+
+
 // exports.updateTicketByKey_DB = async (req, res) => {
 //   try {
 //     const { ticketKey } = req.params;
-//     const { status, startTime, endTime, SLA, asap } = req.body;
+//     const { status, startTime, endTime, SLA, asap, backupEmail } = req.body;
 
-//     console.log("🔄 Updating ticket in DB:", ticketKey);
-
-//     const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() }).lean();
-//     if (!existingTicket) {
-//       return res.status(404).json({ success: false, error: 'Ticket not found' });
+//     if (!backupEmail) {
+//       return res.status(400).json({ success: false, error: "backupEmail is required" });
 //     }
 
-//     if (status === undefined && startTime === undefined && endTime === undefined && SLA === undefined && asap === undefined) {
-//       return res.status(400).json({ success: false, error: 'No fields to update' });
+//     const existingTicket = await NetflixTicket.findOne({
+//       ticketKey: ticketKey.trim(),
+//       backupCM_email: backupEmail
+//     }).lean();
+
+//     if (!existingTicket) {
+//       return res.status(404).json({ success: false, error: "Ticket not found for this backupEmail" });
 //     }
 
 //     const updateData = {
@@ -593,161 +601,186 @@ exports.getNetflixTickets = async (req, res) => {
 //     };
 
 //     const updatedTicket = await NetflixTicket.findOneAndUpdate(
-//       { ticketKey: ticketKey.trim() },
+//       { ticketKey: ticketKey.trim(), backupCM_email: backupEmail },
 //       { $set: updateData },
 //       { new: true, runValidators: true }
 //     ).lean();
 
-//     // === ENABLE/DISABLE LOGIC ===
 //     const bulkOps = [];
+//     const cmFilter = { backupCM_email: backupEmail };
 
-//     if (updateData.status === "Start") {
+//     // Get all tickets for this CM
+//     const allTickets = await NetflixTicket.find(cmFilter).lean();
+    
+//     // Find ASAP tickets with status Assigned or On Hold
+//     const asapTickets = allTickets.filter(ticket => 
+//       ticket.asap === true && 
+//       ["Assigned", "On Hold"].includes(ticket.status)
+//     );
+
+//     // Check if there's currently a Start ticket (after update)
+//     const startTicket = allTickets.find(ticket => {
+//       // If this is the ticket being updated, use the new status
+//       if (ticket.ticketKey === ticketKey.trim()) {
+//         return updateData.status === "Start";
+//       }
+//       return ticket.status === "Start";
+//     });
+
+//     // CASE 1: There is a Start ticket
+//     if (startTicket) {
+//       // Enable only the Start ticket, disable all others
 //       bulkOps.push({
 //         updateMany: {
-//           filter: { ticketKey: { $ne: ticketKey.trim() } },
+//           filter: { ...cmFilter, ticketKey: { $ne: startTicket.ticketKey } },
 //           update: { $set: { enable: false } }
 //         }
 //       });
 //       bulkOps.push({
 //         updateOne: {
-//           filter: { ticketKey: ticketKey.trim() },
+//           filter: { ticketKey: startTicket.ticketKey, backupCM_email: backupEmail },
 //           update: { $set: { enable: true } }
-//         }
-//       });
-//     } else if (updateData.status === "Assigned") {
-//       bulkOps.push({
-//         updateMany: {
-//           filter: { status: "Assigned" },
-//           update: { $set: { enable: true } }
-//         }
-//       });
-//       bulkOps.push({
-//         updateMany: {
-//           filter: { status: { $ne: "Assigned" } },
-//           update: { $set: { enable: false } }
-//         }
-//       });
-//     } else if (updateData.status === "On Hold") {
-//       const hasAsapTickets = await NetflixTicket.exists({ asap: true });
-//       if (hasAsapTickets) {
-//         bulkOps.push({
-//           updateMany: {
-//             filter: { asap: true },
-//             update: { $set: { enable: true } }
-//           }
-//         });
-//         bulkOps.push({
-//           updateOne: {
-//             filter: { ticketKey: ticketKey.trim() },
-//             update: { $set: { enable: true } }
-//           }
-//         });
-//       }
-//     } else {
-//       if (updateData.asap === false) {
-//         bulkOps.push({
-//           updateMany: {
-//             filter: { status: "Assigned" },
-//             update: { $set: { enable: true } }
-//           }
-//         });
-//         bulkOps.push({
-//           updateMany: {
-//             filter: { status: { $ne: "Assigned" } },
-//             update: { $set: { enable: false } }
-//           }
-//         });
-//         bulkOps.push({
-//           updateOne: {
-//             filter: { ticketKey: ticketKey.trim() },
-//             update: { $set: { enable: false } }
-//           }
-//         });
-//       } else {
-//         bulkOps.push({
-//           updateOne: {
-//             filter: { ticketKey: ticketKey.trim() },
-//             update: { $set: { enable: false } }
-//           }
-//         });
-//         bulkOps.push({
-//           updateMany: {
-//             filter: { status: "Assigned" },
-//             update: { $set: { enable: true } }
-//           }
-//         });
-//         bulkOps.push({
-//           updateMany: {
-//             filter: { status: { $ne: "Assigned" } },
-//             update: { $set: { enable: false } }
-//           }
-//         });
-//       }
-//     }
-
-//     // Rule 4 check
-//     const asapActiveTicketsExist = await NetflixTicket.exists({
-//       asap: true,
-//       status: { $in: ["Start", "Assigned"] }
-//     });
-
-//     if (!asapActiveTicketsExist) {
-//       bulkOps.push({
-//         updateMany: {
-//           filter: { status: "Assigned" },
-//           update: { $set: { enable: true } }
-//         }
-//       });
-//       bulkOps.push({
-//         updateMany: {
-//           filter: { status: { $ne: "Assigned" } },
-//           update: { $set: { enable: false } }
 //         }
 //       });
 //     }
+//     // CASE 2: No Start ticket - handle based on previous state and ASAP tickets
+//     else {
+//       // Check if we're transitioning FROM Start TO On Hold
+//       const isStartToOnHold = existingTicket.status === "Start" && updateData.status === "On Hold";
+      
+//       if (isStartToOnHold) {
+//         // Start ticket changed to On Hold
+//         if (asapTickets.length > 0) {
+//           // There are ASAP tickets - enable only ASAP tickets
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, asap: true, status: { $in: ["Assigned", "On Hold"] } },
+//               update: { $set: { enable: true } }
+//             }
+//           });
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, asap: { $ne: true } },
+//               update: { $set: { enable: false } }
+//             }
+//           });
+//         } else {
+//           // No ASAP tickets - enable only the On Hold ticket (the one that was Start)
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, ticketKey: { $ne: ticketKey.trim() } },
+//               update: { $set: { enable: false } }
+//             }
+//           });
+//           bulkOps.push({
+//             updateOne: {
+//               filter: { ticketKey: ticketKey.trim(), backupCM_email: backupEmail },
+//               update: { $set: { enable: true } }
+//             }
+//           });
+//         }
+//       } 
+//       // Start ticket changed to other status (not On Hold)
+//       else if (existingTicket.status === "Start" && updateData.status !== "Start" && updateData.status !== "On Hold") {
+//         if (asapTickets.length > 0) {
+//           // There are ASAP tickets - enable only ASAP tickets
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, asap: true, status: { $in: ["Assigned", "On Hold"] } },
+//               update: { $set: { enable: true } }
+//             }
+//           });
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, asap: { $ne: true } },
+//               update: { $set: { enable: false } }
+//             }
+//           });
+//         } else {
+//           // No ASAP tickets - enable all remaining tickets with valid statuses
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, status: { $in: ["Assigned", "On Hold"] } },
+//               update: { $set: { enable: true } }
+//             }
+//           });
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, status: { $nin: ["Assigned", "On Hold"] } },
+//               update: { $set: { enable: false } }
+//             }
+//           });
+//         }
+//       }
+//       // No Start ticket and not transitioning from Start
+//       else {
+//         if (asapTickets.length > 0) {
+//           // There are ASAP tickets - enable only ASAP tickets
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, asap: true, status: { $in: ["Assigned", "On Hold"] } },
+//               update: { $set: { enable: true } }
+//             }
+//           });
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, asap: { $ne: true } },
+//               update: { $set: { enable: false } }
+//             }
+//           });
+//         } else {
+//           // No ASAP tickets - enable all tickets with valid statuses
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, status: { $in: ["Assigned", "On Hold"] } },
+//               update: { $set: { enable: true } }
+//             }
+//           });
+//           bulkOps.push({
+//             updateMany: {
+//               filter: { ...cmFilter, status: { $nin: ["Assigned", "On Hold"] } },
+//               update: { $set: { enable: false } }
+//             }
+//           });
+//         }
+//       }
+//     }
 
-//     if (bulkOps.length) await NetflixTicket.bulkWrite(bulkOps);
+//     // Execute bulk operations if any exist
+//     if (bulkOps.length > 0) {
+//       await NetflixTicket.bulkWrite(bulkOps);
+//     }
 
 //     return res.status(200).json({
 //       success: true,
-//       message: 'Ticket updated successfully',
+//       message: "Ticket updated successfully",
 //       data: updatedTicket
 //     });
 //   } catch (error) {
-//     console.error('⛔ DB update error:', error);
-//     if (error.name === 'ValidationError') {
-//       const details = {};
-//       for (let key in error.errors) {
-//         details[key] = error.errors[key].message;
-//       }
-//       return res.status(400).json({ success: false, error: 'Validation failed', details });
-//     }
-//     res.status(500).json({ success: false, error: 'Internal server error' });
+//     console.error("⛔ DB update error:", error);
+//     return res.status(500).json({ success: false, error: "Internal server error" });
 //   }
 // };
+
 
 
 
 exports.updateTicketByKey_DB = async (req, res) => {
   try {
     const { ticketKey } = req.params;
-    const { status, startTime, endTime, SLA, asap } = req.body;
+    const { status, startTime, endTime, SLA, asap, backupEmail } = req.body;
 
-    console.log("🔄 Updating ticket in DB:", ticketKey);
-
-    const existingTicket = await NetflixTicket.findOne({ ticketKey: ticketKey.trim() }).lean();
-    if (!existingTicket) {
-      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    if (!backupEmail) {
+      return res.status(400).json({ success: false, error: "backupEmail is required" });
     }
 
-    if (
-      status === undefined &&
-      startTime === undefined &&
-      endTime === undefined &&
-      SLA === undefined &&
-      asap === undefined
-    ) {
-      return res.status(400).json({ success: false, error: 'No fields to update' });
+    const existingTicket = await NetflixTicket.findOne({
+      ticketKey: ticketKey.trim(),
+      backupCM_email: backupEmail
+    }).lean();
+
+    if (!existingTicket) {
+      return res.status(404).json({ success: false, error: "Ticket not found for this backupEmail" });
     }
 
     const updateData = {
@@ -760,146 +793,208 @@ exports.updateTicketByKey_DB = async (req, res) => {
     };
 
     const updatedTicket = await NetflixTicket.findOneAndUpdate(
-      { ticketKey: ticketKey.trim() },
+      { ticketKey: ticketKey.trim(), backupCM_email: backupEmail },
       { $set: updateData },
       { new: true, runValidators: true }
     ).lean();
 
-    // === ENABLE/DISABLE LOGIC ===
     const bulkOps = [];
+    const cmFilter = { backupCM_email: backupEmail };
 
-    // Check if there are any ASAP tickets active (Start or Assigned)
-    const hasAsapTickets = await NetflixTicket.exists({
-      asap: true,
-      status: { $in: ["Start", "Assigned"] }
+    // Get all tickets for this CM
+    const allTickets = await NetflixTicket.find(cmFilter).lean();
+    
+    // Find ASAP tickets with status Assigned or On Hold (after considering the update)
+    const asapTickets = allTickets.filter(ticket => {
+      // If this is the ticket being updated, use the new status
+      if (ticket.ticketKey === ticketKey.trim()) {
+        return ticket.asap === true && ["Assigned", "On Hold"].includes(updateData.status);
+      }
+      return ticket.asap === true && ["Assigned", "On Hold"].includes(ticket.status);
     });
 
-    // RULE 1: Start ticket → disable all others
-    if (updateData.status === "Start") {
+    // Find On Hold tickets (after considering the update)
+    const onHoldTickets = allTickets.filter(ticket => {
+      // If this is the ticket being updated, use the new status
+      if (ticket.ticketKey === ticketKey.trim()) {
+        return updateData.status === "On Hold";
+      }
+      return ticket.status === "On Hold";
+    });
+
+    // Check if there's currently a Start ticket (after update)
+    const startTicket = allTickets.find(ticket => {
+      // If this is the ticket being updated, use the new status
+      if (ticket.ticketKey === ticketKey.trim()) {
+        return updateData.status === "Start";
+      }
+      return ticket.status === "Start";
+    });
+
+    // CASE 1: There is a Start ticket
+    if (startTicket) {
+      // Enable only the Start ticket, disable all others
       bulkOps.push({
         updateMany: {
-          filter: { ticketKey: { $ne: ticketKey.trim() } },
+          filter: { ...cmFilter, ticketKey: { $ne: startTicket.ticketKey } },
           update: { $set: { enable: false } }
         }
       });
       bulkOps.push({
         updateOne: {
-          filter: { ticketKey: ticketKey.trim() },
+          filter: { ticketKey: startTicket.ticketKey, backupCM_email: backupEmail },
           update: { $set: { enable: true } }
         }
       });
     }
-    // RULE 2: Assigned tickets → enable only assigned tickets
-    else if (updateData.status === "Assigned") {
-      bulkOps.push({
-        updateMany: {
-          filter: { status: "Assigned" },
-          update: { $set: { enable: true } }
-        }
-      });
-      bulkOps.push({
-        updateMany: {
-          filter: { status: { $ne: "Assigned" } },
-          update: { $set: { enable: false } }
-        }
-      });
-    }
-    // RULE 3: On Hold
-    else if (updateData.status === "On Hold") {
-      if (hasAsapTickets) {
-        bulkOps.push({
-          updateMany: {
-            filter: { asap: true },
-            update: { $set: { enable: true } }
-          }
-        });
-        bulkOps.push({
-          updateOne: {
-            filter: { ticketKey: ticketKey.trim() },
-            update: { $set: { enable: true } }
-          }
-        });
-      }
-    }
-    // RULE 4: All other status changes
+    // CASE 2: No Start ticket - handle based on previous state and ASAP tickets
     else {
-      if (hasAsapTickets) {
-        // If ASAP tickets exist → only enable ASAP tickets
-        bulkOps.push({
-          updateMany: {
-            filter: { asap: true },
-            update: { $set: { enable: true } }
-          }
-        });
-        bulkOps.push({
-          updateMany: {
-            filter: { asap: { $ne: true } },
-            update: { $set: { enable: false } }
-          }
-        });
-        bulkOps.push({
-          updateOne: {
-            filter: { ticketKey: ticketKey.trim() },
-            update: { $set: { enable: false } }
-          }
-        });
-      } else {
-        // No ASAP tickets → enable assigned tickets only
-        bulkOps.push({
-          updateMany: {
-            filter: { status: "Assigned" },
-            update: { $set: { enable: true } }
-          }
-        });
-        bulkOps.push({
-          updateMany: {
-            filter: { status: { $ne: "Assigned" } },
-            update: { $set: { enable: false } }
-          }
-        });
+      // Check if we're transitioning FROM Start TO On Hold
+      const isStartToOnHold = existingTicket.status === "Start" && updateData.status === "On Hold";
+      
+      if (isStartToOnHold) {
+        // Start ticket changed to On Hold
+        if (asapTickets.length > 0) {
+          // There are ASAP tickets - enable only ASAP tickets
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, asap: true, status: { $in: ["Assigned", "On Hold"] } },
+              update: { $set: { enable: true } }
+            }
+          });
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, asap: { $ne: true } },
+              update: { $set: { enable: false } }
+            }
+          });
+        } else {
+          // No ASAP tickets - enable only the On Hold ticket (the one that was Start)
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, ticketKey: { $ne: ticketKey.trim() } },
+              update: { $set: { enable: false } }
+            }
+          });
+          bulkOps.push({
+            updateOne: {
+              filter: { ticketKey: ticketKey.trim(), backupCM_email: backupEmail },
+              update: { $set: { enable: true } }
+            }
+          });
+        }
+      } 
+      // Start ticket changed to other status (not On Hold)
+      else if (existingTicket.status === "Start" && updateData.status !== "Start" && updateData.status !== "On Hold") {
+        if (asapTickets.length > 0) {
+          // There are ASAP tickets - enable only ASAP tickets
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, asap: true, status: { $in: ["Assigned", "On Hold"] } },
+              update: { $set: { enable: true } }
+            }
+          });
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, asap: { $ne: true } },
+              update: { $set: { enable: false } }
+            }
+          });
+        } else if (onHoldTickets.length > 0) {
+          // No ASAP tickets but On Hold tickets exist - enable only On Hold tickets
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, status: "On Hold" },
+              update: { $set: { enable: true } }
+            }
+          });
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, status: { $ne: "On Hold" } },
+              update: { $set: { enable: false } }
+            }
+          });
+        } else {
+          // No ASAP tickets and no On Hold tickets - enable all remaining tickets with valid statuses
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, status: { $in: ["Assigned", "On Hold"] } },
+              update: { $set: { enable: true } }
+            }
+          });
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, status: { $nin: ["Assigned", "On Hold"] } },
+              update: { $set: { enable: false } }
+            }
+          });
+        }
+      }
+      // No Start ticket and not transitioning from Start
+      else {
+        if (asapTickets.length > 0) {
+          // There are ASAP tickets - enable only ASAP tickets
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, asap: true, status: { $in: ["Assigned", "On Hold"] } },
+              update: { $set: { enable: true } }
+            }
+          });
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, asap: { $ne: true } },
+              update: { $set: { enable: false } }
+            }
+          });
+        } else if (onHoldTickets.length > 0) {
+          // No ASAP tickets but On Hold tickets exist - enable only On Hold tickets
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, status: "On Hold" },
+              update: { $set: { enable: true } }
+            }
+          });
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, status: { $ne: "On Hold" } },
+              update: { $set: { enable: false } }
+            }
+          });
+        } else {
+          // No ASAP tickets and no On Hold tickets - enable all tickets with valid statuses
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, status: { $in: ["Assigned", "On Hold"] } },
+              update: { $set: { enable: true } }
+            }
+          });
+          bulkOps.push({
+            updateMany: {
+              filter: { ...cmFilter, status: { $nin: ["Assigned", "On Hold"] } },
+              update: { $set: { enable: false } }
+            }
+          });
+        }
       }
     }
 
-    // RULE 5: If no ASAP Start/Assigned tickets remain → enable assigned tickets
-    const asapActiveTicketsExist = await NetflixTicket.exists({
-      asap: true,
-      status: { $in: ["Start", "Assigned"] }
-    });
-
-    if (!asapActiveTicketsExist) {
-      bulkOps.push({
-        updateMany: {
-          filter: { status: "Assigned" },
-          update: { $set: { enable: true } }
-        }
-      });
-      bulkOps.push({
-        updateMany: {
-          filter: { status: { $ne: "Assigned" } },
-          update: { $set: { enable: false } }
-        }
-      });
+    // Execute bulk operations if any exist
+    if (bulkOps.length > 0) {
+      await NetflixTicket.bulkWrite(bulkOps);
     }
-
-    if (bulkOps.length) await NetflixTicket.bulkWrite(bulkOps);
 
     return res.status(200).json({
       success: true,
-      message: 'Ticket updated successfully',
+      message: "Ticket updated successfully",
       data: updatedTicket
     });
   } catch (error) {
-    console.error('⛔ DB update error:', error);
-    if (error.name === 'ValidationError') {
-      const details = {};
-      for (let key in error.errors) {
-        details[key] = error.errors[key].message;
-      }
-      return res.status(400).json({ success: false, error: 'Validation failed', details });
-    }
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    console.error("⛔ DB update error:", error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
   }
 };
+
+
 
 
 
