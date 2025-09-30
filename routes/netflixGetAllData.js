@@ -15,6 +15,8 @@ router.get('/dropdown', getNetflixTickets.CMTicketsFilterOptions); // uisng this
 router.get('/getCMs', getNetflixTickets.getCMs); // uisng this api
 router.put('/updateBackupCM_Sheet', getNetflixTickets.updateBackupCM_Sheet);
 router.put('/updateBackupCM_DB', getNetflixTickets.updateBackupCM_DB);
+router.get("/dropdown-tickets", getNetflixTickets.getDropdownTickets);
+
 // router.get("/getTicketSLA",getNetflixTickets.getTicketSLA);
 
 

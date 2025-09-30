@@ -1527,4 +1527,38 @@ exports.qmdata = async (req, res) => {
 
 
 
+// GET API for dropdown data
+exports.getDropdownTickets = async (req, res) => {
+  try {
+    const { status, cm_region } = req.query;
+
+    // Build filter object dynamically
+    let filter = {};
+    if (status) filter.status = status;
+    if (cm_region) filter.cm_region = cm_region;
+
+    // Fetch tickets with only required fields
+    const tickets = await NetflixTicket.find(filter, {
+      backupCM_email: 1,
+      ticketKey: 1,
+      CM_name: 1,
+      status: 1,
+      cm_region: 1,
+      _id: 0
+    }).sort({ cm_region: 1 }); // sorting first by status then region
+
+    res.status(200).json({
+      success: true,
+      count: tickets.length,
+      data: tickets,
+    });
+  } catch (err) {
+    console.error("Error fetching dropdown tickets:", err);
+    res.status(500).json({ success: false, error: "Server Error" });
+  }
+};
+
+
+
+
 
