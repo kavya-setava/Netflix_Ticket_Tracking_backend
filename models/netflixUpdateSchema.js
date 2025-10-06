@@ -37,9 +37,11 @@ const NetflixTicketsSchema = new Schema({
     type: String,
     default: ''
   },
-  SLA: {
-    type: String,
-    default: "00:00:00"
+  slaData: {
+    deadline: String,
+    timeRemaining: String,
+    isBreached: Boolean,
+    status: String
   },
   latest_created_date: {
     type: Date,

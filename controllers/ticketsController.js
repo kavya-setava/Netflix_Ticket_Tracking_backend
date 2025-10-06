@@ -1,5 +1,5 @@
 const Task = require("../models/taskSubtaskSchema");
-const NetflixTicket = require("../models/netflixUpdateSchema");
+const NetflixTicket = require('../models/Netflixupdateschema');
 const UserData = require("../models/UserSchema");
 
 
@@ -62,7 +62,189 @@ exports.getTaskDropdown = async (req, res) => {
 };
 
 
+function formatISTDateYMD(date) {
+  const istDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const yyyy = istDate.getFullYear();
+  const mm = String(istDate.getMonth() + 1).padStart(2, "0");
+  const dd = String(istDate.getDate()).padStart(2, "0");
+  const hh = String(istDate.getHours()).padStart(2, "0");
+  const mi = String(istDate.getMinutes()).padStart(2, "0");
+  const ss = String(istDate.getSeconds()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+}
 
+
+function calculateTimeRemaining(slaDeadline, status, currentIST) {
+  const diffMs = slaDeadline - currentIST;
+  const absMs = Math.abs(diffMs);
+
+  const hours = String(Math.floor(absMs / (1000 * 60 * 60))).padStart(2, "0");
+  const minutes = String(Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, "0");
+  const seconds = String(Math.floor((absMs % (1000 * 60)) / 1000)).padStart(2, "0");
+
+  const sign = diffMs < 0 ? "-" : "";
+  const timeRemaining = `${sign}${hours}:${minutes}:${seconds}`;
+
+  let slaStatus = "Normal";
+  if (["Closed", "Need More Information", "Sent to VAO"].includes(status)) {
+    slaStatus = "Not Applicable";
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: slaStatus
+    };
+  }
+
+  if (diffMs <= 0) slaStatus = "Breached";
+  else if (diffMs < 3600000) slaStatus = "Critical"; // less than 1h
+
+  return {
+    deadline: formatISTDateYMD(slaDeadline),
+    timeRemaining,
+    isBreached: diffMs <= 0,
+    status: slaStatus
+  };
+}
+
+
+function calculateLiveConfirmationSLA(ticket, user, currentIST) {
+  if (!user || !user.shiftStart) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "Shift Time Missing"
+    };
+  }
+
+  if (!ticket.startDateTime) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "Start Date Missing"
+    };
+  }
+
+  // Parse startDateTime (from ticket, not today's date)
+  const startDate = new Date(ticket.startDateTime);
+
+  // Extract shift start hours and minutes
+  const [hh, mm] = user.shiftStart.split(":").map(Number);
+
+  // Create shift start datetime on the *same day as startDate*
+  const shiftStartOnStartDate = new Date(startDate);
+  shiftStartOnStartDate.setHours(hh, mm, 0, 0);
+
+  // SLA deadline = shift start + 2 hours
+  const slaDeadline = new Date(shiftStartOnStartDate.getTime() + 2 * 60 * 60 * 1000);
+
+  return calculateTimeRemaining(slaDeadline, ticket.status, currentIST);
+}
+
+
+
+// SLA for Media Plan QC (startDateTime decides, updateddate applies)
+function calculateMediaPlanQCSLA(ticket, currentIST) {
+  if (!ticket.startDateTime || !ticket.updateddate) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "Start/Updated Date Missing"
+    };
+  }
+
+  const startDate = new Date(ticket.startDateTime);
+  const updated = new Date(ticket.updated);
+
+  // Calculate difference in days between now and startDate
+  const diffDays = Math.floor((currentIST - startDate) / (1000 * 60 * 60 * 24));
+
+  let slaDeadline;
+  if (diffDays <= 2) {
+    slaDeadline = new Date(updated.getTime() + 2 * 60 * 60 * 1000); // +2 hrs
+  } else {
+    slaDeadline = new Date(updated.getTime() + 8 * 60 * 60 * 1000); // +8 hrs
+  }
+
+  return calculateTimeRemaining(slaDeadline, ticket.status, currentIST);
+}
+
+// SLA for Reporting → EOC Report
+function calculateReportingEOCSLA(ticket, currentIST) {
+  if (!ticket.endDateTime) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "End Date Missing"
+    };
+  }
+
+  const endDate = new Date(ticket.endDateTime);
+
+  // Check if endDate is today
+  // const isToday =
+  //   endDate.getDate() === currentIST.getDate() &&
+  //   endDate.getMonth() === currentIST.getMonth() &&
+  //   endDate.getFullYear() === currentIST.getFullYear();
+
+  // if (!isToday) {
+  //   return {
+  //     deadline: "N/A",
+  //     timeRemaining: "00:00:00",
+  //     isBreached: false,
+  //     status: "Not Applicable"
+  //   };
+  // }
+
+  // Set SLA deadline to end of today + 72 hours
+  const endOfToday = new Date(currentIST);
+  endOfToday.setHours(23, 59, 59, 999);
+  const slaDeadline = new Date(endDate.getTime() + 72 * 60 * 60 * 1000);
+
+  // const slaDeadline = new Date(endOfToday.getTime() + 72 * 60 * 60 * 1000);
+  
+  return calculateTimeRemaining(slaDeadline, ticket.status, currentIST);
+}
+
+// Master SLA calculator
+function calculateSLA(ticket, user, currentIST) {
+  if (!ticket.taskType && !ticket.subTaskType) {
+    return {
+      deadline: "N/A",
+      timeRemaining: "00:00:00",
+      isBreached: false,
+      status: "Not Applicable"
+    };
+  }
+
+  if (ticket.taskType === "Live Confirmation") {
+    return calculateLiveConfirmationSLA(ticket, user, currentIST);
+  }
+
+  if (ticket.taskType === "Media Plan QC") {
+    return calculateMediaPlanQCSLA(ticket, currentIST);
+  }
+
+  if (ticket.taskType === "Reporting" && ticket.subTaskType === "EOC Report") {
+    return calculateReportingEOCSLA(ticket, currentIST);
+  }
+
+  return {
+    deadline: "N/A",
+    timeRemaining: "00:00:00",
+    isBreached: false,
+    status: "No SLA Rule"
+  };
+}
+
+
+function getCurrentIST() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+}
 
 // Update Ticket's TaskType & SubTaskType
 exports.updateTicketTask = async (req, res) => {
@@ -96,6 +278,16 @@ exports.updateTicketTask = async (req, res) => {
     if (!updatedTicket) {
       return res.status(404).json({ error: "Ticket not found" });
     }
+
+    const currentIST = getCurrentIST();
+    const userEmail = updatedTicket.backupCM_email || updatedTicket.CM_email;
+    const userForSLA = await UserData.findOne({ emailId: userEmail }).lean();
+
+    const slaData = calculateSLA(updatedTicket, userForSLA, currentIST);
+
+    // 4. Save SLA into the ticket
+    updatedTicket.slaData = slaData;
+    await updatedTicket.save();
 
     res.json({
       message: "Ticket updated successfully",
