@@ -3,6 +3,7 @@ const { google } = require('googleapis');
 const path = require('path');
 const UserData =  require('../models/UserSchema')
 const ticketActivity = require("../models/utilizationSchema");
+const { server, notifyCM } = require("../Notifications/notificationServer")
 require('dotenv').config();
 
 const auth = new google.auth.GoogleAuth({
@@ -793,6 +794,11 @@ exports.updateTicketByKey_DB = async (req, res) => {
       asap: asap ?? existingTicket.asap,
       updateddate: new Date()
     };
+
+    if (updatedTicket.asap === true && updatedTicket.backupCM_email) {
+      const message = `Ticket ${updatedTicket.ticketKey} was marked ASAP by QM.`;
+      notifyCM(updatedTicket.CM_email, message);
+    }
 
     const updatedTicket = await NetflixTicket.findOneAndUpdate(
       { ticketKey: ticketKey.trim(), backupCM_email: previousEmail || backupEmail },
