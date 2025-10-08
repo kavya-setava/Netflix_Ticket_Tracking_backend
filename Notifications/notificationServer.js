@@ -1,15 +1,20 @@
-const express = require('express')
-const http = require('http')
-const WebSocket  = require('ws')
-const url = require('url')
-const cors = require('cors')
-const ticketRoutes = require('../routes/netflixGetAllData')
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const url = require('url');
+const cors = require('cors');
 
-const app = express()
+// Import router with exact casing
+const ticketRoutes = require('../routes/netflixGetAllData');
 
-app.use(cors())
-app.use(express.json())
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+// Mount router
 app.use("/api", ticketRoutes);
+console.log('ticketRoutes:', ticketRoutes); // should log [Function: router]
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -17,7 +22,7 @@ const server = http.createServer(app);
 // Create WebSocket server
 const wss = new WebSocket.Server({ server, path: "/api/asapNotification" });
 
-// Store connections mapped by CM email
+// Map to store CM connections
 const cmConnections = new Map();
 
 wss.on("connection", (ws, req) => {
@@ -39,7 +44,7 @@ wss.on("connection", (ws, req) => {
   });
 });
 
-// Function to send notification to specific CM
+// Function to notify a specific CM
 const notifyCM = (cmEmail, message) => {
   const ws = cmConnections.get(cmEmail);
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -50,11 +55,9 @@ const notifyCM = (cmEmail, message) => {
   }
 };
 
-// Export for use in controllers
+// Export for controllers to use
 module.exports = { server, notifyCM };
 
-// Start the server
+// Start server
 const PORT = 5000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-
+server.listen(PORT, () => console.log(`🚀 Notification server running on port ${PORT}`));

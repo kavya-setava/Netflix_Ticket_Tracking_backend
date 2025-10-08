@@ -3,7 +3,7 @@ const { google } = require('googleapis');
 const path = require('path');
 const UserData =  require('../models/UserSchema')
 const ticketActivity = require("../models/utilizationSchema");
-const { server, notifyCM } = require("../Notifications/notificationServer")
+const { notifyCM } = require("../Notifications/notificationServer")
 require('dotenv').config();
 
 const auth = new google.auth.GoogleAuth({
