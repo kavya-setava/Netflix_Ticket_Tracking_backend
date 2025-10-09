@@ -3,6 +3,8 @@ const { google } = require('googleapis');
 const path = require('path');
 const UserData =  require('../models/UserSchema')
 const ticketActivity = require("../models/utilizationSchema");
+const { sendAsapNotification } = require('../socket/notifications');
+
 require('dotenv').config();
 
 const auth = new google.auth.GoogleAuth({
@@ -1008,6 +1010,9 @@ exports.updateTicketByKey_DB = async (req, res) => {
     if (bulkOps.length > 0) {
       await NetflixTicket.bulkWrite(bulkOps);
     }
+    if (updatedTicket && updatedTicket.asap === true) {
+  await sendAsapNotification(backupEmail, updatedTicket);
+}
 
     return res.status(200).json({
       success: true,
