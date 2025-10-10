@@ -1,7 +1,15 @@
 const Task = require("../models/taskSubtaskSchema");
 const NetflixTicket = require("../models/netflixUpdateSchema");
 const UserData = require("../models/UserSchema");
+const { google } = require("googleapis");
+// const auth = require("../config/googleAuth"); // your Google auth setup
 
+// require('dotenv').config();
+
+const auth = new google.auth.GoogleAuth({
+  keyFile: process.env.GOOGLE_CREDENTIALS_PATH,
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+});
 
 
 // Create Task Controller
@@ -109,6 +117,77 @@ exports.updateTicketTask = async (req, res) => {
 };
 
 
+
+exports.updateTicketTaskInSheet = async (req, res) => {
+  try {
+    console.log("...............sheet");
+    
+    const { ticketKey, taskId } = req.body;
+
+    if (!ticketKey || !taskId) {
+      return res.status(400).json({ error: "ticketKey and taskId are required" });
+    }
+
+    // 1. Find the task in MongoDB
+    const task = await Task.findOne({ taskId });
+    if (!task) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+
+    const taskType = task.taskType || "";
+    const subTaskType = task.subTaskType || "";
+
+    // 2. Setup Google Sheets API
+    const sheetsClient = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: sheetsClient });
+
+    const spreadsheetId = "1a6dhDpgyr_Bdis-CHsCfVjhwiNrwoS4_P1Im99FlLi4";
+    const sheetName = "Sheet1";
+
+    // 3. Read all rows to find ticketKey
+    const sheetResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A2:M`,
+    });
+
+    const rows = sheetResponse.data.values || [];
+    const rowIndex = rows.findIndex(row => row[0]?.trim() === ticketKey.trim());
+
+    if (rowIndex === -1) {
+      return res.status(404).json({ success: false, error: "Ticket not found in Google Sheet" });
+    }
+
+    // Columns for Task Type and Sub Task Type
+    const taskTypeCol = "L";
+    const subTaskTypeCol = "M";
+
+    const updateRange = `${sheetName}!${taskTypeCol}${rowIndex + 2}:${subTaskTypeCol}${rowIndex + 2}`;
+
+    // 4. Update sheet
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: updateRange,
+      valueInputOption: "RAW",
+      resource: {
+        values: [[taskType, subTaskType]],
+      },
+    });
+
+    console.log(`✅ Google Sheet updated for ${ticketKey} in range ${updateRange}`);
+
+    res.status(200).json({
+      success: true,
+      message: "Ticket taskType and subTaskType updated in Google Sheet",
+      ticketKey,
+      taskType,
+      subTaskType,
+    });
+
+  } catch (err) {
+    console.error("❌ Error updating Google Sheet:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 
 // Update shift timings for all EMEA users
