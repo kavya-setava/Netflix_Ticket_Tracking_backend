@@ -600,6 +600,7 @@ exports.updateTicketByKey_DB = async (req, res) => {
       endTime: endTime ?? existingTicket.endTime,
       SLA: SLA ?? existingTicket.SLA,
       asap: asap ?? existingTicket.asap,
+      notify: (asap ?? existingTicket.asap) ? true : existingTicket.notify,
       updateddate: new Date()
     };
 
@@ -1142,3 +1143,37 @@ exports.getDropdownTickets = async (req, res) => {
 
 
 
+exports.sendnotifytickets = async (req, res) => {
+  try {
+    const { backupEmail } = req.body; // get email from request body
+    if (!backupEmail) {
+      return res.status(400).json({ error: 'backupEmail is required' });
+    }
+
+    // Fetch tickets with notify=true for this backupEmail
+    const tickets = await NetflixTicket.find({backupCM_email: backupEmail, notify: true });
+
+    if (!tickets.length) {
+      return res.status(200).json({ message: `No tickets with notify=true for ${backupEmail}` });
+    }
+
+    // Send each ticket through WebSocket
+    for (const ticket of tickets) {
+      await sendAsapNotification(backupEmail, ticket);
+    }
+
+    // res.status(200).json({ message: `Sent ${tickets.length} tickets to ${backupEmail}` });
+      const responseData = tickets.map(ticket => ({
+      ticketKey: ticket.ticketKey,
+      backupEmail: ticket.backupCM_email
+    }));
+
+    res.status(200).json({
+      message: `Sent ${tickets.length} tickets to ${backupEmail}`,
+      tickets: responseData
+    });
+  } catch (err) {
+    console.error('❌ Failed to send notify tickets:', err.message);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};

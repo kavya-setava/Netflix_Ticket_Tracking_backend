@@ -89,7 +89,9 @@ const NetflixTicketsSchema = new Schema({
     type: Boolean,
     default:false
   },
-  enable: { type: Boolean, default: true }
+  enable: { type: Boolean, default: true },
+  notify: { type: Boolean, default: false }
+
 });
 
 // Auto-generate ticketID before saving
